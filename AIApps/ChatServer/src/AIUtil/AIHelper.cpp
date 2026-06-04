@@ -139,6 +139,10 @@ json AIHelper::executeCurl(const json& payload) {
     if (!curl) {
         throw std::runtime_error("Failed to initialize curl");
     }
+    // 关闭 libcurl 的进程内 DNS 缓存：默认 60s 内把 "解析失败" 也缓存为负结果，
+    // 一次 WSL2/上游 DNS 抽风会让接下来一分钟所有同 host 请求都报 "Couldn't resolve host"。
+    // chat 类负载每次切模型 host 都不一样,缓存收益接近零,关掉更稳。
+    curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, 0L);
 
     std::cout<<"test "<< strategy->getApiUrl().c_str()<<' '<< strategy->getApiKey()<<std::endl;
 
