@@ -200,7 +200,9 @@ std::string DeepSeekStrategy::getApiKey() const
 }
 std::string DeepSeekStrategy::getModel() const
 {
-    return "deepseek-v4-pro";
+    // 占位符修正: deepseek-v4-pro 是占位名,DeepSeek 实际不发布该模型;
+    // 用 deepseek-reasoner 才能拿到 streaming 推理(reasoning_content)与最终答案
+    return "deepseek-reasoner";
 }
 
 json DeepSeekStrategy::buildRequest(const std::vector<std::pair<std::string, long long>> &messages) const
