@@ -513,12 +513,76 @@
                 thinkToggle.textContent = thinkBlock.classList.contains('hidden') ? '显示' : '隐藏';
             });
 
-            // 思考内容：默认 display:none,首个 reasoning 帧到达时再展开（避免露空头）
+            // 思考内容：默认 display:none,首个 reasoning 帧到达时再展开
             let thinkText = '';
-            // 累计完整文本（仅最终答案），每个 chunk 后整体重渲染 markdown（逐片单独 parse 会产生破碎 HTML）
+            // 累计完整文本（仅最终答案）。
+            // 流式期间只做 O(text.size) 的 textContent 追加,不做 marked+DOMPurify parse;
+            // 等 [DONE] / 流结束再做一次完整 markdown 解析。修前每个 chunk 都 parse
+            // 已累积全段 → O(n²) 总量,长响应中段会占主线程 50-200ms/chunk,
+            // 把 textarea 输入事件全排到后面,表现为"卡顿"。
             let fullText = '';
+
+            // RAF 节流:同一帧内的多个 chunk 合并成一次 DOM 写。配合 textContent,
+            // 整个流式过程主线程几乎空闲,输入事件不被挤压。
+            let pendingFrame = null;
+            let dirtyThink = false;
+            let dirtyContent = false;
+
+            const renderTextPlain = (el, text) => {
+                // 流式期间走 textContent,O(text.size) 纯字符串赋值,
+                // 不触发 marked 解析、DOM 树重建、scroll layout flush
+                el.textContent = text;
+            };
+
+            const renderFinalMarkdown = () => {
+                // 流结束一次性 marked.parse + DOMPurify.sanitize。
+                // 文本量比单 chunk 大但只跑一次,O(n) 可接受,流结束后看到完整 markdown。
+                if (thinkText) {
+                    thinkContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(thinkText));
+                }
+                if (fullText) {
+                    contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
+                }
+            };
+
+            const flushDirty = () => {
+                if (dirtyThink) {
+                    renderTextPlain(thinkContentDiv, thinkText);
+                    dirtyThink = false;
+                }
+                if (dirtyContent) {
+                    renderTextPlain(contentDiv, fullText);
+                    dirtyContent = false;
+                }
+            };
+
+            // [DONE] 和 reader done 两个路径都可能收尾,谁先到谁负责;后者是 no-op
+            let finalRendered = false;
+            const flushAndRenderFinal = () => {
+                if (finalRendered) return;
+                finalRendered = true;
+                if (pendingFrame !== null) {
+                    cancelAnimationFrame(pendingFrame);
+                    pendingFrame = null;
+                }
+                flushDirty();
+                renderFinalMarkdown();
+            };
+
+            const scheduleRender = () => {
+                if (pendingFrame !== null) return;
+                pendingFrame = requestAnimationFrame(() => {
+                    pendingFrame = null;
+                    flushDirty();
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                });
+            };
+
             const handleData = (dataStr) => {
-                if (dataStr === '[DONE]') return;
+                if (dataStr === '[DONE]') {
+                    flushAndRenderFinal();
+                    return;
+                }
                 try {
                     const j = JSON.parse(dataStr);
                     // 方案2：新会话由服务端生成 sessionId，经首帧回传，这里据此建立会话
@@ -534,6 +598,7 @@
                         return;
                     }
                     if (j.error) {
+                        // 错误帧文本短,直接 innerHTML 一次;走 RAF 没意义
                         contentDiv.innerHTML = DOMPurify.sanitize(marked.parse('[错误] ' + j.error));
                         return;
                     }
@@ -543,14 +608,14 @@
                             thinkBlock.classList.add('visible');
                         }
                         thinkText += j.reasoning;
-                        thinkContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(thinkText));
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                        dirtyThink = true;
+                        scheduleRender();
                         return;
                     }
                     if (j.content) {
                         fullText += j.content;
-                        contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                        dirtyContent = true;
+                        scheduleRender();
                     }
                 } catch (e) {}
             };
@@ -574,6 +639,9 @@
             if (lineBuffer.startsWith('data: ')) {
                 handleData(lineBuffer.slice(6));
             }
+
+            // 兜底:即使服务端没发 [DONE] 帧就关闭连接,也保证最终 markdown 解析跑一次
+            flushAndRenderFinal();
 
             // TTS 用 captured fullText 而非 DOM 内容（DOM 含 markdown 解析后的 HTML 标签，需要原始文本）
             ttsBtn.onclick = () => playTTS(fullText);
