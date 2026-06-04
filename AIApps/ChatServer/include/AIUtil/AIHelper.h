@@ -38,9 +38,14 @@ public:
     // 可选：发送自定义请求体
     json request(const json &payload);
 
-    // 流式调用：每个 SSE data line 触发一次 onChunk，回调内容为已解析的 delta.content 字符串
+    // 流式调用：每个 SSE data line 触发一次 onChunk。
+    // onChunk(kind, text) — kind 取值：
+    //   "content"   : delta.content（最终答案）
+    //   "reasoning" : delta.reasoning_content（模型思考过程，DeepSeek-R1 / Qwen-thinking 等）
+    // 用字符串 kind 与现有 SSE 帧字段名 {content|reasoning|sessionId|error} 直接对齐，
+    // 避免引入枚举或结构体；任何无法识别的 kind 一律按"未知"忽略即可。
     void executeCurlStream(const json &payload,
-                         const std::function<void(const std::string &)> &onChunk);
+                         const std::function<void(const std::string &kind, const std::string &text)> &onChunk);
 
     // 构建流式请求体：复用当前策略的 buildRequest（基于完整历史），并追加 stream:true
     json buildStreamRequest();

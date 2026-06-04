@@ -3,6 +3,7 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
+#include <cstdio>
 
 void ChatStreamHandler::handle(const http::HttpRequest &req, http::HttpResponse *resp)
 {
@@ -85,24 +86,54 @@ void ChatStreamHandler::handle(const http::HttpRequest &req, http::HttpResponse 
     // 累计完整回复，流结束后写回历史
     auto fullReply = std::make_shared<std::string>();
 
-    // SSE 回调：每个 delta.content chunk 累计并直接发送 SSE data 行
-    // 换行/回车必须转义，否则会破坏 "data: {...}\n\n" 的 SSE 分帧，导致多行 markdown 解析失败
-    auto onChunk = [conn, fullReply](const std::string &content) {
-        if (content.empty()) return;
-        fullReply->append(content);
+    // JSON 转义助手：覆盖 RFC 8259 要求的全部 U+0000..U+001F 控制字符 + 反斜杠/双引号，
+    // 否则 LLM 输出里的 tab（缩进代码块）会直接破坏 SSE 帧里的 JSON,前端 JSON.parse 整帧炸掉。
+    // UTF-8 高字节 (>=0x80) 不在转义表里,原样穿透。
+    auto escapeForJson = [](const std::string &s) {
         std::string escaped;
-        escaped.reserve(content.size() * 2);
-        for (char c : content) {
-            if (c == '"') escaped += "\\\"";
+        escaped.reserve(s.size() * 2);
+        for (char c : s) {
+            unsigned char uc = static_cast<unsigned char>(c);
+            if (c == '"')       escaped += "\\\"";
             else if (c == '\\') escaped += "\\\\";
             else if (c == '\n') escaped += "\\n";
             else if (c == '\r') escaped += "\\r";
-            else escaped += c;
+            else if (c == '\t') escaped += "\\t";
+            else if (c == '\b') escaped += "\\b";
+            else if (c == '\f') escaped += "\\f";
+            else if (uc < 0x20) {
+                char buf[8];
+                std::snprintf(buf, sizeof buf, "\\u%04x", uc);
+                escaped += buf;
+            }
+            else                escaped += c;
         }
-        std::string line = "data: {\"content\": \"" + escaped + "\"}\n\n";
-        muduo::net::Buffer buf;
-        buf.append(line);
-        conn->send(&buf);
+        return escaped;
+    };
+
+    // SSE 回调：kind ∈ {"content", "reasoning"}。
+    // 思考内容（reasoning）是模型推理过程，不参与"偶数=user / 奇数=assistant"的下标约定，
+    // 也不写回 fullReply / 历史库 —— 它是"过程态"、本轮结束就丢；最终答案（content）维持现有行为。
+    // 严格匹配 kind,未知值直接 log + 丢弃,绝不静默退化成 content（避免下游误把脏数据写进最终答案）。
+    auto onChunk = [conn, fullReply, escapeForJson](const std::string &kind, const std::string &text) {
+        if (text.empty()) return;
+        if (kind == "reasoning") {
+            std::string line = "data: {\"reasoning\": \"" + escapeForJson(text) + "\"}\n\n";
+            muduo::net::Buffer buf;
+            buf.append(line);
+            conn->send(&buf);
+            return;
+        }
+        if (kind == "content") {
+            fullReply->append(text);
+            std::string line = "data: {\"content\": \"" + escapeForJson(text) + "\"}\n\n";
+            muduo::net::Buffer buf;
+            buf.append(line);
+            conn->send(&buf);
+            return;
+        }
+        std::cerr << "[ChatStreamHandler] unknown SSE chunk kind: \"" << kind
+                  << "\" (text=" << text.size() << " bytes), dropping" << std::endl;
     };
 
     // curl 在后台线程执行，结果通过 onChunk 回调发送 SSE 数据

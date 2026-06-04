@@ -196,12 +196,16 @@ size_t AIHelper::WriteCallback(void* contents, size_t size, size_t nmemb, void* 
 // 流式调用：curl_easy_perform 同步阻塞，WriteCallback 增量触发 onChunk
 // libcurl 接收到每个 TCP chunk 时立即回调，不等全部接收完
 void AIHelper::executeCurlStream(const json &payload,
-                                const std::function<void(const std::string &)> &onChunk)
+                                const std::function<void(const std::string &kind, const std::string &text)> &onChunk)
 {
     CURL *curl = curl_easy_init();
     if (!curl) {
         throw std::runtime_error("Failed to initialize curl");
     }
+    // 关闭 libcurl 的进程内 DNS 缓存：默认 60s 内把 "解析失败" 也缓存为负结果，
+    // 一次 WSL2/上游 DNS 抽风会让接下来一分钟所有同 host 请求都报 "Couldn't resolve host"。
+    // chat 类负载每次切模型 host 都不一样,缓存收益接近零,关掉更稳。
+    curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, 0L);
 
     struct curl_slist *headers = nullptr;
     std::string apiKey = strategy->getApiKey();
@@ -223,7 +227,7 @@ void AIHelper::executeCurlStream(const json &payload,
     // 行缓冲 WriteData：按 \n 分行，每行触发一次 onChunk
     struct WriteData {
         std::string lineBuffer;
-        std::function<void(const std::string &)> onChunk;
+        std::function<void(const std::string &kind, const std::string &text)> onChunk;
         AIStrategy *strategy;
     } wd;
     wd.onChunk = onChunk;

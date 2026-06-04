@@ -238,6 +238,40 @@
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* 思考块：模型推理过程的可折叠容器，默认隐藏，仅在收到 reasoning 帧后展开 */
+        .think-block {
+            display: none;
+            background: #f7f7f8;
+            border-left: 3px solid #9ca3af;
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        .think-block.visible { display: block; }
+        .think-block.hidden .think-content { display: none; }
+        .think-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            color: #6b7280;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .think-content {
+            font-size: 13px;
+            color: #4b5563;
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+        .think-toggle {
+            border: none;
+            background: transparent;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 12px;
+        }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -450,14 +484,36 @@
             const decoder = new TextDecoder();
             let lineBuffer = '';
 
-            // 创建助手气泡，内部放独立内容容器，便于流式增量渲染
+            // 创建助手气泡，内部放两个独立内容容器：思考块 + 答案块，便于流式增量渲染
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message', 'assistant');
-            msgDiv.innerHTML = '<div style="display:flex; align-items:center; gap:10px;"><div style="flex:1;"><b>AI:</b><br><span class="message-content"></span></div></div>';
+            msgDiv.innerHTML = `
+                <div class="think-block">
+                    <div class="think-header">
+                        <span>💭 思考中…</span>
+                        <button class="think-toggle" type="button">隐藏</button>
+                    </div>
+                    <div class="think-content"></div>
+                </div>
+                <div class="answer-block" style="display:flex; align-items:center; gap:10px;">
+                    <div style="flex:1;"><b>AI:</b><br><div class="message-content"></div></div>
+                    <button class="tts-btn" type="button">🔊</button>
+                </div>
+            `;
             chatContainer.appendChild(msgDiv);
+            const thinkBlock = msgDiv.querySelector('.think-block');
+            const thinkContentDiv = msgDiv.querySelector('.think-content');
             const contentDiv = msgDiv.querySelector('.message-content');
+            const ttsBtn = msgDiv.querySelector('.tts-btn');
+            const thinkToggle = msgDiv.querySelector('.think-toggle');
+            thinkToggle.addEventListener('click', () => {
+                thinkBlock.classList.toggle('hidden');
+                thinkToggle.textContent = thinkBlock.classList.contains('hidden') ? '显示' : '隐藏';
+            });
 
-            // 累计完整文本，每个 chunk 后整体重渲染 markdown（逐片单独 parse 会产生破碎 HTML）
+            // 思考内容：默认 display:none,首个 reasoning 帧到达时再展开（避免露空头）
+            let thinkText = '';
+            // 累计完整文本（仅最终答案），每个 chunk 后整体重渲染 markdown（逐片单独 parse 会产生破碎 HTML）
             let fullText = '';
             const handleData = (dataStr) => {
                 if (dataStr === '[DONE]') return;
@@ -477,6 +533,16 @@
                     }
                     if (j.error) {
                         contentDiv.innerHTML = DOMPurify.sanitize(marked.parse('[错误] ' + j.error));
+                        return;
+                    }
+                    if (j.reasoning) {
+                        // 首个 reasoning 帧：展开思考块（否则一直 display:none）
+                        if (!thinkBlock.classList.contains('visible')) {
+                            thinkBlock.classList.add('visible');
+                        }
+                        thinkText += j.reasoning;
+                        thinkContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(thinkText));
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
                         return;
                     }
                     if (j.content) {
@@ -507,7 +573,11 @@
                 handleData(lineBuffer.slice(6));
             }
 
+            // TTS 用 captured fullText 而非 DOM 内容（DOM 含 markdown 解析后的 HTML 标签，需要原始文本）
+            ttsBtn.onclick = () => playTTS(fullText);
+
             // 将完整回复写入前端会话模型（sessionId 帧已确保会话条目存在）
+            // thinkText 故意不写 —— 思考是过程态，按计划不进入会话历史、不入库、不在"同步历史"后重渲染
             if (fullText && sessions[currentSessionId]) {
                 sessions[currentSessionId].messages.push({ role: 'assistant', content: fullText });
             }

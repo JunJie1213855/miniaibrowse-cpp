@@ -26,8 +26,9 @@ public:
     virtual std::string parseResponse(const json &response) const = 0;
 
     // 流式解析 SSE data line（普通策略共用默认实现）
+    // onChunk(kind, text)：kind ∈ {"content", "reasoning"} —— 详见 AIHelper.h 中的说明
     virtual void parseResponseStreaming(const std::string &sseLine,
-                                        const std::function<void(const std::string &)> &onChunk) const;
+                                        const std::function<void(const std::string &kind, const std::string &text)> &onChunk) const;
 
     bool isMCPModel = false;
 };

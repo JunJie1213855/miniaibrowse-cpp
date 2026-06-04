@@ -279,10 +279,12 @@ std::string LocalLLMStrategy::parseResponse(const json &response) const
     return {};
 }
 
-// 普通策略共用流式解析实现：解析 SSE data line，提取 delta.content 并回调
-// SSE 格式：data: {"choices":[{"delta":{"content":"xxx"}}]}
+// 普通策略共用流式解析实现：解析 SSE data line，提取 delta.content 与 delta.reasoning_content 并回调
+// SSE 格式：data: {"choices":[{"delta":{"content":"xxx","reasoning_content":"yyy"}}]}
+//   推理模型（DeepSeek-R1、Qwen-thinking 等）会同时返回两个字段：reasoning_content 是思考过程，content 是最终答案
+//   非推理模型通常不返回 reasoning_content 字段（流首帧缺省或为 null），is_null() 双重判断避免把 null 渲染成 "null"
 void AIStrategy::parseResponseStreaming(const std::string &sseLine,
-                                      const std::function<void(const std::string &)> &onChunk) const
+                                      const std::function<void(const std::string &kind, const std::string &text)> &onChunk) const
 {
     const std::string prefix = "data: ";
     if (sseLine.rfind(prefix, 0) == 0) {
@@ -292,8 +294,25 @@ void AIStrategy::parseResponseStreaming(const std::string &sseLine,
             auto j = json::parse(jsonStr);
             if (j.contains("choices") && !j["choices"].empty()) {
                 auto &choice = j["choices"][0];
-                if (choice.contains("delta") && choice["delta"].contains("content")) {
-                    onChunk(choice["delta"]["content"]);
+                // 先提取 reasoning_content（思考过程），必须在 content 之前 —— 帧可能只有 reasoning 无 content
+                // reasoning_content 在推理阶段可能是 null（首帧 / 尚未开始），用 is_null() 双重判断避免把 null 渲染成 "null"
+                if (choice.contains("delta") && choice["delta"].contains("reasoning_content") &&
+                    !choice["delta"]["reasoning_content"].is_null()) {
+                    const auto &r = choice["delta"]["reasoning_content"];
+                    if (r.is_string() && !r.get<std::string>().empty()) {
+                        onChunk("reasoning", r.get<std::string>());
+                    }
+                }
+                // content 同 reasoning_content:DeepSeek-R1 推理阶段每帧都是 {"content":null,"reasoning_content":"..."}
+                // 缺了 is_null() 守卫,nlohmann 隐式 to_string() 会抛 json::type_error,被外层 catch(...) 静默吞掉 →
+                // 整段 reasoning 期间用户看不到任何 content 帧,推理收尾后 content 开始非 null 才有输出。
+                // 对齐 reasoning_content 的守卫,显式 is_string() + !is_null()。
+                if (choice.contains("delta") && choice["delta"].contains("content") &&
+                    !choice["delta"]["content"].is_null() && choice["delta"]["content"].is_string()) {
+                    const auto &c = choice["delta"]["content"];
+                    if (!c.get<std::string>().empty()) {
+                        onChunk("content", c.get<std::string>());
+                    }
                 }
             }
         } catch (...) {}
