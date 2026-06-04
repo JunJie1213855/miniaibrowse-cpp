@@ -9,7 +9,7 @@ services:
       MYSQL_ROOT_PASSWORD: "123456"
       MYSQL_DATABASE: ChatHttpServer
     ports:
-      - "3306:3306"
+      - "3307:3306"  # 宿主机 3306 被残留进程占用,临时改 3307;ChatServer.cpp 同步改 3307
     volumes:
       - mysql_data:/var/lib/mysql
       # 首次启动自动建表（仅在数据卷为空时执行一次）
