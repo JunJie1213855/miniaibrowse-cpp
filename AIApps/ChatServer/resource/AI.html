@@ -277,7 +277,10 @@
 
     <script>
         
-        let currentSessionId = null, tempSession = false, isSubmitting = false;
+        // 初始就按"没有真实会话"处理：tempSession=true,与 currentSessionId=null 配套。
+        // 否则 loadSessions() 还在异步飞时用户抢跑发消息,submit handler 会撞进
+        // sessions[null].messages.push(...) 抛 "Cannot read properties of undefined"。
+        let currentSessionId = null, tempSession = true, isSubmitting = false;
         const sessions = {};
         const sessionList = document.getElementById('sessionList');
         const chatContainer = document.getElementById('chat-container');
@@ -522,7 +525,10 @@
             // 方案2：新旧会话都走流式。新会话传空 sessionId，由服务端生成并经 SSE 首帧回传
             // try/finally 兜底：即便流式过程抛异常，也必须重置 isSubmitting，否则发送按钮会永久锁死
             try {
-                if (!tempSession) {
+                // 守卫:sessions[currentSessionId] 必须存在才进数组。极端竞态(被删了、
+                // loadSessions 还没 populate 完且 tempSession 被误置)下,不写就是漏一条
+                // 用户消息历史,远比炸整个 chat 流要轻。
+                if (!tempSession && sessions[currentSessionId]) {
                     sessions[currentSessionId].messages.push({ role: 'user', content: question });
                 }
                 await streamAIResponse(question, modelTypeSelect.value, tempSession ? '' : currentSessionId);
