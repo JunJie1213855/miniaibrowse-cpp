@@ -9,9 +9,11 @@
 
 #include"../include/ChatServer.h"
 
+// 注：std::string 不是 literal type（C++20 之前），constexpr std::string 在 C++17 编译失败。
+// 这里用 const 而非 constexpr，值在运行时初始化一次，对调用方无影响（构造参数接受 const std::string&）。
 const std::string RABBITMQ_HOST = "localhost";
 const std::string QUEUE_NAME = "sql_queue";
-const int THREAD_NUM = 2;
+constexpr int THREAD_NUM = 2;
 
 void executeMysql(const std::string sql) {
     http::MysqlUtil mysqlUtil_;
