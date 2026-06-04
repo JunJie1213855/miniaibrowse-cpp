@@ -239,14 +239,15 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 思考块：模型推理过程的可折叠容器，默认隐藏，仅在收到 reasoning 帧后展开 */
+        /* 思考块：模型推理过程的可折叠容器，默认隐藏，仅在收到 reasoning 帧后展开
+           紧凑版：padding/margin/font-size/line-height 全部收紧,长推理不占版面 */
         .think-block {
             display: none;
             background: #f7f7f8;
-            border-left: 3px solid #9ca3af;
-            padding: 10px 14px;
-            border-radius: 10px;
-            margin-bottom: 10px;
+            border-left: 2px solid #9ca3af;
+            padding: 5px 9px 6px;
+            border-radius: 6px;
+            margin-bottom: 6px;
         }
         .think-block.visible { display: block; }
         .think-block.hidden .think-content { display: none; }
@@ -254,15 +255,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
             color: #6b7280;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
         }
         .think-content {
-            font-size: 13px;
+            font-size: 12px;
             color: #4b5563;
-            line-height: 1.55;
+            line-height: 1.4;
             white-space: pre-wrap;
         }
         .think-toggle {
@@ -270,7 +271,8 @@
             background: transparent;
             color: #6b7280;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
+            padding: 0 2px;
         }
     </style>
 
