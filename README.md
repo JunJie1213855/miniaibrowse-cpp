@@ -1,6 +1,6 @@
 # CppAIWeb — 纯 C++ AI 应用服务平台
 
-在自研 C++ HTTP 框架(基于 [muduo](https://github.com/chenshuo/muduo))之上构建的 AI 应用服务端:对接多家云端大模型与本地推理,内置多会话上下文、轻量级 MCP 式工具调用、RAG、ASR/TTS、图像识别,并用 RabbitMQ 做数据库写入的异步解耦。
+在自研 C++ HTTP 框架(基于 [muduo](https://github.com/chenshuo/muduo))之上构建的 AI 应用服务端:对接多家云端大模型与本地推理,内置多会话上下文、轻量级 MCP 式工具调用、RAG,并用 RabbitMQ 做数据库写入的异步解耦。
 
 整个平台用 **纯 C++** 实现,不依赖 LangChain / Spring AI 这类现成 SDK——HTTP 框架、策略路由、工具调用、异步入库都是自建。
 
@@ -15,8 +15,6 @@
 - **流式输出(SSE)**:`/chat/stream` 基于 Server-Sent Events 边生成边推送,首条消息也走流式(sessionId 由服务端生成并经首帧回传)。
 - **多会话隔离**:`unordered_map<userId, unordered_map<sessionId, AIHelper>>`,每个 (用户, 会话) 一份独立上下文。
 - **RAG**:接入阿里百炼知识库应用(通过 `Knowledge_Base_ID` 配置),返回带引用的回答。
-- **图像识别**:ONNX Runtime + OpenCV。
-- **语音合成(TTS)**:`/chat/tts`。
 - **异步入库**:请求路径只写内存,SQL 通过 RabbitMQ(`sql_queue`)交由后台线程池消费,主线程不阻塞;启动时回放整表重建内存状态。
 
 ---
@@ -36,8 +34,7 @@ HttpServer/            # 可复用的 HTTP 框架 (namespace http)
 AIApps/ChatServer/     # AI 应用层
   ├─ ChatServer        # 持有 HttpServer,注册路由,保存内存状态
   ├─ handlers/         # 每个路由一个 Handler(ChatServer 的 friend)
-  └─ AIUtil/           # AIHelper / AIStrategy / AIToolRegistry /
-                       # ImageRecognizer / AISpeechProcessor / MQManager ...
+  └─ AIUtil/           # AIHelper / AIStrategy / AIToolRegistry / MQManager ...
 ```
 
 **调用路径**:请求 → 对应 Handler → `AIHelper::chat`(非流式)或 `ChatStreamHandler`(流式)→ `AIStrategy` 按厂商构造请求 → libcurl 调用 → 解析回复 → 写入历史(异步入库)。
@@ -166,7 +163,7 @@ make -j
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET  | `/` , `/entry` | 入口页 |
+| GET  | `/` , `/entry` | 登录/注册页 |
 | POST | `/login` | 登录 |
 | POST | `/register` | 注册 |
 | POST | `/user/logout` | 登出 |
@@ -176,10 +173,6 @@ make -j
 | POST | `/chat/history` | 拉取某会话历史 |
 | GET  | `/chat/sessions` | 当前用户会话列表 |
 | POST | `/chat/delete-session` | 删除会话及其历史 |
-| GET  | `/menu` | 功能菜单页 |
-| GET  | `/upload` | 图像上传页 |
-| POST | `/upload/send` | 图像识别 |
-| POST | `/chat/tts` | 语音合成 |
 
 ---
 
@@ -187,7 +180,7 @@ make -j
 
 提交/部署前请留意以下几处(代码现状,欢迎 PR 改进):
 
-1. **资源文件绝对路径硬编码**:`AIHelper.cpp`、`ChatHandler.cpp`、`AIMenuHandler.cpp`、`ChatEntryHandler.cpp`、`AIUploadHandler.cpp` 中写死了 `/home/ros/lib/CppAIWeb/AIApps/ChatServer/resource/...`。在你的环境(或本仓库改名后)需改成实际路径或相对路径。
+1. **资源文件绝对路径硬编码**:`AIHelper.cpp`、`ChatHandler.cpp`、`ChatEntryHandler.cpp` 中写死了 `/home/ros/lib/CppAIWeb/AIApps/ChatServer/resource/...`。在你的环境(或本仓库改名后)需改成实际路径或相对路径。
 2. **数据库凭据硬编码**:`ChatServer::initialize`(`ChatServer.cpp:38`)中 `tcp://127.0.0.1:3306` / `root` / `123456` / `ChatHttpServer` 为写死值,建议改为从环境变量读取。`docker-compose.yml` 中的 `MYSQL_ROOT_PASSWORD` 与之对应。
 3. **必须从 `build/` 启动**:`config.json` 以相对 CWD 路径加载。
 4. **`/register` 存在 SQL 注入风险**:注册接口用字符串拼接构造 SQL(`ChatRegisterHandler.cpp`),生产前应改为参数化查询。

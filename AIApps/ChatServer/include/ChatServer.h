@@ -16,10 +16,7 @@
 #include "../../../HttpServer/include/utils/MysqlUtil.h"
 #include "../../../HttpServer/include/utils/FileUtil.h"
 #include "../../../HttpServer/include/utils/JsonUtil.h"
-#include"AIUtil/AISpeechProcessor.h"
 #include"AIUtil/AIHelper.h"
-#include"AIUtil/ImageRecognizer.h"
-#include"AIUtil/base64.h"
 #include"AIUtil/MQManager.h"
 
 
@@ -31,13 +28,8 @@ class ChatEntryHandler;
 class ChatSendHandler;
 class ChatHistoryHandler;
 
-class AIMenuHandler;
-class AIUploadHandler;
-class AIUploadSendHandler;
-
 
 class ChatSessionsHandler;
-class ChatSpeechHandler;
 
 class ChatServer {
 public:
@@ -55,13 +47,9 @@ private:
 	friend class ChatHandler;
 	friend class ChatEntryHandler;
 	friend class ChatSendHandler;
-	friend class AIMenuHandler;
-	friend class AIUploadHandler;
-	friend class AIUploadSendHandler;
 	friend class ChatHistoryHandler;
 
 	friend class ChatSessionsHandler;
-	friend class ChatSpeechHandler;
 	friend class ChatStreamHandler;
 	friend class ChatDeleteSessionHandler;
 
@@ -100,9 +88,6 @@ private:
 
 	std::unordered_map<int, std::unordered_map<std::string,std::shared_ptr<AIHelper> > > chatInformation;
 	std::mutex	mutexForChatInformation;
-
-	std::unordered_map<int, std::shared_ptr<ImageRecognizer> > ImageRecognizerMap;
-	std::mutex	mutexForImageRecognizerMap;
 
 	std::unordered_map<int,std::vector<std::string> > sessionsIdsMap;
 	std::mutex mutexForSessionsId;

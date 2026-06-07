@@ -4,14 +4,10 @@
 #include"../include/handlers/ChatHandler.h"
 #include"../include/handlers/ChatEntryHandler.h"
 #include"../include/handlers/ChatSendHandler.h"
-#include"../include/handlers/AIMenuHandler.h"
-#include"../include/handlers/AIUploadSendHandler.h"
-#include"../include/handlers/AIUploadHandler.h"
 #include"../include/handlers/ChatHistoryHandler.h"
 
 
 #include"../include/handlers/ChatSessionsHandler.h"
-#include"../include/handlers/ChatSpeechHandler.h"
 #include"../include/handlers/ChatStreamHandler.h"
 #include"../include/handlers/ChatDeleteSessionHandler.h"
 
@@ -119,32 +115,24 @@ void ChatServer::initializeRouter() {
 
     httpServer_.Get("/", std::make_shared<ChatEntryHandler>(this));
     httpServer_.Get("/entry", std::make_shared<ChatEntryHandler>(this));
-    
+
     httpServer_.Post("/login", std::make_shared<ChatLoginHandler>(this));
-    
+
     httpServer_.Post("/register", std::make_shared<ChatRegisterHandler>(this));
-    
+
     httpServer_.Post("/user/logout", std::make_shared<ChatLogoutHandler>(this));
 
     httpServer_.Get("/chat", std::make_shared<ChatHandler>(this));
 
     httpServer_.Post("/chat/send", std::make_shared<ChatSendHandler>(this));
-    
+
     httpServer_.Post("/chat/stream", std::make_shared<ChatStreamHandler>(this));
- 
-    httpServer_.Get("/menu", std::make_shared<AIMenuHandler>(this));
-    
-    httpServer_.Get("/upload", std::make_shared<AIUploadHandler>(this));
-   
-    httpServer_.Post("/upload/send", std::make_shared<AIUploadSendHandler>(this));
-    
+
     httpServer_.Post("/chat/history", std::make_shared<ChatHistoryHandler>(this));
 
-    
+
     httpServer_.Get("/chat/sessions", std::make_shared<ChatSessionsHandler>(this));
     httpServer_.Post("/chat/delete-session", std::make_shared<ChatDeleteSessionHandler>(this));
-
-    httpServer_.Post("/chat/tts", std::make_shared<ChatSpeechHandler>(this));
 }
 
 void ChatServer::initializeSession() {

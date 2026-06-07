@@ -8,25 +8,10 @@ void ChatHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
     {
 
         auto session = server_->getSessionManager()->getSession(req, resp);
-        LOG_INFO << "session->getValue(\"isLoggedIn\") = " << session->getValue("isLoggedIn");
-        if (session->getValue("isLoggedIn") != "true")
-        {
 
-            json errorResp;
-            errorResp["status"] = "error";
-            errorResp["message"] = "Unauthorized";
-            std::string errorBody = errorResp.dump(4);
-
-            server_->packageResp(req.getVersion(), http::HttpResponse::k401Unauthorized,
-                "Unauthorized", true, "application/json", errorBody.size(),
-                errorBody, resp);
-            return;
-        }
-
-
-        int userId = std::stoi(session->getValue("userId"));
-        std::string username = session->getValue("username");
-
+        // 聊天页本身不做鉴权：未登录也返回 AI.html，由前端 ensureLoggedIn() 弹窗登录
+        // 鉴权只在 /chat/send /chat/stream /chat/history 等具体业务接口上做
+        std::string htmlContent;
         std::string reqFile("/home/ros/lib/CppAIWeb/AIApps/ChatServer/resource/AI.html");
         FileUtil fileOperater(reqFile);
         if (!fileOperater.isValid())
@@ -36,19 +21,23 @@ void ChatHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
         }
 
         std::vector<char> buffer(fileOperater.size());
-        fileOperater.readFile(buffer); 
-        std::string htmlContent(buffer.data(), buffer.size());
+        fileOperater.readFile(buffer);
+        htmlContent.assign(buffer.data(), buffer.size());
 
 
         size_t headEnd = htmlContent.find("</head>");
         if (headEnd != std::string::npos)
         {
-            std::string script = "<script>const userId = '" + std::to_string(userId) + "';</script>";
-            htmlContent.insert(headEnd, script);
+            // 已登录时注入 userId（前端可用于显示/调试），未登录注入空字符串
+            std::string injected = "<script>const userId = '";
+            if (session->getValue("isLoggedIn") == "true")
+            {
+                injected += session->getValue("userId");
+            }
+            injected += "';</script>";
+            htmlContent.insert(headEnd, injected);
         }
 
-        // server_->packageResp(req.getVersion(), HttpResponse::k200Ok, "OK"
-        //             , false, "text/html", htmlContent.size(), htmlContent, resp);
         resp->setStatusLine(req.getVersion(), http::HttpResponse::k200Ok, "OK");
         resp->setCloseConnection(false);
         resp->setContentType("text/html");

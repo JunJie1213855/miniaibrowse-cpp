@@ -206,21 +206,6 @@
                 background: #22c55e;
             }
 
-        .tts-btn {
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-size: 12px;
-            cursor: pointer;
-            background: #4ade80;
-            color: white;
-            border: none;
-            transition: all 0.2s;
-        }
-
-            .tts-btn:hover {
-                background: #15803d;
-            }
-
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -290,7 +275,6 @@
 
     <div class="chat-section">
         <div class="top-bar">
-            <button class="back-btn" onclick="window.location.href='/menu'">← 返回</button>
             <button class="sync-btn" id="sync-history-btn">同步历史数据</button>
             <label for="modelType">选择模型：</label>
             <select id="modelType">
@@ -369,21 +353,11 @@
 
         loadInputHistory();
 
-        async function playTTS(text) {
-            try {
-                const res = await fetch('/chat/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
-                const data = await res.json();
-                if (data.success && data.url) { const audio = new Audio(data.url); audio.play(); }
-                else alert('[错误] 无法获取语音');
-            } catch (err) { console.error(err); alert('[错误] 请求语音接口失败'); }
-        }
-
         function appendMessage(role, content) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message', role);
             const safeHtml = DOMPurify.sanitize(marked.parse(content));
-            const escapedContent = content.replace(/`/g, '\\`').replace(/\$/g, '\\$');
-            msgDiv.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><div style="flex:1;"><b>${role === 'user' ? '你' : 'AI'}:</b><br>${safeHtml}</div><button class="tts-btn" onclick="playTTS(\`${escapedContent}\`)">🔊</button></div>`;
+            msgDiv.innerHTML = `<b>${role === 'user' ? '你' : 'AI'}:</b><br>${safeHtml}`;
             chatContainer.appendChild(msgDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
             return msgDiv;
@@ -497,16 +471,14 @@
                     </div>
                     <div class="think-content"></div>
                 </div>
-                <div class="answer-block" style="display:flex; align-items:center; gap:10px;">
-                    <div style="flex:1;"><b>AI:</b><br><div class="message-content"></div></div>
-                    <button class="tts-btn" type="button">🔊</button>
+                <div class="answer-block">
+                    <b>AI:</b><br><div class="message-content"></div>
                 </div>
             `;
             chatContainer.appendChild(msgDiv);
             const thinkBlock = msgDiv.querySelector('.think-block');
             const thinkContentDiv = msgDiv.querySelector('.think-content');
             const contentDiv = msgDiv.querySelector('.message-content');
-            const ttsBtn = msgDiv.querySelector('.tts-btn');
             const thinkToggle = msgDiv.querySelector('.think-toggle');
             thinkToggle.addEventListener('click', () => {
                 thinkBlock.classList.toggle('hidden');
@@ -643,9 +615,6 @@
             // 兜底:即使服务端没发 [DONE] 帧就关闭连接,也保证最终 markdown 解析跑一次
             flushAndRenderFinal();
 
-            // TTS 用 captured fullText 而非 DOM 内容（DOM 含 markdown 解析后的 HTML 标签，需要原始文本）
-            ttsBtn.onclick = () => playTTS(fullText);
-
             // 将完整回复写入前端会话模型（sessionId 帧已确保会话条目存在）
             // thinkText 故意不写 —— 思考是过程态，按计划不进入会话历史、不入库、不在"同步历史"后重渲染
             if (fullText && sessions[currentSessionId]) {
@@ -736,7 +705,13 @@
             }
         }
 
-        loadSessions();
+        // 入口校验:已登录则加载会话列表,未登录则跳 entry.html 登录/注册
+        // 之前用 prompt() 内嵌登录已废弃,改回独立的登录注册页(/entry)
+        if (sessionStorage.getItem('userId')) {
+            loadSessions();
+        } else {
+            window.location.href = '/entry';
+        }
     </script>
 </body>
 </html>

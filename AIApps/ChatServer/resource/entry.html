@@ -203,7 +203,7 @@ document.getElementById('login-form').addEventListener('submit', function(e){
         }else if(response.status===401){ showAlert('账号或密码错误！'); throw new Error('认证失败'); }
         else throw new Error('请求失败');
     }).then(data=>{
-        if(data && data.userId){ sessionStorage.setItem('userId', data.userId); showAlert('登录成功！'); window.location.href='/menu'; }
+        if(data && data.userId){ sessionStorage.setItem('userId', data.userId); showAlert('登录成功！'); window.location.href='/chat'; }
         else throw new Error('无效的响应数据');
     }).catch(error=>{
         console.error('Error:',error);
