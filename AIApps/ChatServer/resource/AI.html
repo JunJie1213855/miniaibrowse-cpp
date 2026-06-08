@@ -4,260 +4,556 @@
     <meta charset="UTF-8">
     <title>AI 聊天助手</title>
     <style>
-        /* 全局样式 */
-        * {
-            box-sizing: border-box;
+        /* ═══════════════════════════════════════════════════════════════════
+         * Design Tokens — adapted from ai-websource design system
+         * ═══════════════════════════════════════════════════════════════════ */
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --fg: #111111;
+            --muted: #6b6b6b;
+            --border: #e5e5e5;
+            --accent: #4ade80;
+            --accent-on: #ffffff;
+            --accent-hover: color-mix(in oklab, var(--accent), black 12%);
+            --accent-active: color-mix(in oklab, var(--accent), black 20%);
+            --accent-subtle: color-mix(in oklab, var(--accent) 10%, transparent);
+            --success: #17a34a;
+            --danger: #dc2626;
+            --font-display: "Inter", "Microsoft YaHei", -apple-system, system-ui, sans-serif;
+            --font-body: "Inter", "Microsoft YaHei", -apple-system, system-ui, sans-serif;
+            --font-mono: ui-monospace, "JetBrains Mono", monospace;
+            --text-xs: 12px;
+            --text-sm: 14px;
+            --text-base: 16px;
+            --text-lg: 20px;
+            --text-xl: 24px;
+            --leading-body: 1.5;
+            --leading-tight: 1.2;
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 20px;
+            --space-6: 24px;
+            --space-8: 32px;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-pill: 9999px;
+            --elev-flat: none;
+            --elev-ring: 0 0 0 1px var(--border);
+            --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+            --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+            --motion-fast: 150ms;
+            --motion-base: 200ms;
+            --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+         * Reset & Global
+         * ═══════════════════════════════════════════════════════════════════ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            height: 100%;
+            font-family: var(--font-body);
+            font-size: var(--text-base);
+            background: var(--bg);
+            color: var(--fg);
+            line-height: var(--leading-body);
+            -webkit-font-smoothing: antialiased;
         }
 
         body {
-            font-family: "Microsoft YaHei", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
             display: flex;
-            height: 100vh;
-            background: #ffffff;
-            color: #1a1a1a;
         }
 
-        /* 左侧会话列表 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb {
+            background: color-mix(in oklab, var(--muted), transparent 60%);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: color-mix(in oklab, var(--muted), transparent 40%);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+         * Session Sidebar
+         * ═══════════════════════════════════════════════════════════════════ */
         .session-list {
             width: 240px;
+            min-width: 240px;
             display: flex;
             flex-direction: column;
-            background: rgba(240,240,245,0.9);
-            border-right: 1px solid #e0e0e0;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
             overflow: hidden;
         }
 
         .session-list-header {
-            padding: 15px;
-            text-align: center;
-            font-weight: bold;
-            background: rgba(240,240,245,1);
-            border-bottom: 1px solid #e0e0e0;
+            padding: var(--space-4);
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .session-list-title {
+            font-size: var(--text-sm);
+            font-weight: 600;
+            color: var(--fg);
+            margin-bottom: var(--space-3);
         }
 
         .new-chat-btn {
-            width: 80%;
-            margin: 10px auto 0;
-            padding: 8px 0;
+            width: 100%;
+            padding: var(--space-2) 0;
             cursor: pointer;
-            background: #4ade80;
-            color: #fff;
+            background: var(--accent);
+            color: var(--accent-on);
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: bold;
-            transition: all 0.3s;
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            font-family: var(--font-body);
+            transition: background var(--motion-fast) var(--ease-standard);
         }
-
-            .new-chat-btn:hover {
-                background: #22c55e;
-                transform: scale(1.05);
-            }
+        .new-chat-btn:hover { background: var(--accent-hover); }
+        .new-chat-btn:active { background: var(--accent-active); }
+        .new-chat-btn:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
 
         .session-list ul {
             list-style: none;
-            padding: 0;
+            padding: var(--space-2);
             margin: 0;
             flex: 1;
             overflow-y: auto;
         }
 
         .session-list li {
-            padding: 10px 0;
-            margin: 5px 10%;
+            padding: var(--space-3) var(--space-4);
+            margin: 0 0 var(--space-1) 0;
             cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            transition: background 0.2s;
-            color: #333;
-            width: 80%;
+            border-radius: var(--radius-md);
+            border: 1px solid transparent;
+            color: var(--fg);
+            width: 100%;
+            font-size: var(--text-sm);
             box-sizing: border-box;
+            transition: background var(--motion-fast) var(--ease-standard),
+                        border-color var(--motion-fast) var(--ease-standard);
         }
 
-            .session-list li.active {
-                background: #4ade80;
-                color: #fff;
-                font-weight: 500;
-            }
+        .session-list li.active {
+            background: var(--accent);
+            color: var(--accent-on);
+            font-weight: 500;
+            border-color: var(--accent);
+        }
 
-            .session-list li:hover {
-                background: rgba(74,222,128,0.1);
-            }
+        .session-list li:hover:not(.active) {
+            background: var(--accent-subtle);
+            border-color: transparent;
+        }
 
+        .session-list li:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+         * Chat Section
+         * ═══════════════════════════════════════════════════════════════════ */
         .chat-section {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-width: 0;
         }
 
+        /* --- Top Bar & Model Chips --- */
         .top-bar {
-            padding: 12px 20px;
+            padding: var(--space-3) var(--space-6);
             display: flex;
             align-items: center;
-            gap: 12px;
-            background: rgba(240,240,245,0.95);
-            border-bottom: 1px solid #e0e0e0;
-            z-index: 1;
+            gap: var(--space-3);
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            min-height: 56px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
         }
 
-            .top-bar button, .top-bar select {
-                padding: 6px 12px;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 14px;
-                transition: all 0.3s;
-            }
+        .top-bar label {
+            font-size: var(--text-sm);
+            color: var(--muted);
+            font-weight: 500;
+        }
 
-            .top-bar button {
-                background: #4ade80;
-                color: #fff;
-                font-weight: bold;
-            }
+        /* Visually hide native select but keep it functional */
+        #modelType {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
 
-                .top-bar button:hover {
-                    background: #22c55e;
-                    transform: scale(1.05);
-                }
+        .sync-btn {
+            padding: var(--space-1) var(--space-3);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            font-size: var(--text-sm);
+            font-family: var(--font-body);
+            background: var(--surface);
+            color: var(--fg);
+            transition: border-color var(--motion-fast) var(--ease-standard),
+                        background var(--motion-fast) var(--ease-standard);
+        }
+        .sync-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-subtle);
+        }
+        .sync-btn:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
 
-            .top-bar select {
-                background: #fff;
-                color: #111;
-                font-weight: bold;
-                border: 1px solid #e0e0e0;
-            }
+        .model-chips {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
 
+        .model-chip {
+            padding: var(--space-1) var(--space-3);
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-pill);
+            font-size: var(--text-sm);
+            font-family: var(--font-body);
+            color: var(--muted);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color var(--motion-fast) var(--ease-standard),
+                        background var(--motion-fast) var(--ease-standard),
+                        color var(--motion-fast) var(--ease-standard);
+        }
+        .model-chip:hover {
+            border-color: var(--accent);
+        }
+        .model-chip.active {
+            border-color: var(--accent);
+            background: var(--accent-subtle);
+            color: var(--accent);
+            font-weight: 500;
+        }
+        .model-chip:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        /* --- Messages --- */
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: var(--space-6);
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            background: #f5f5f5;
+            gap: var(--space-6);
+            background: var(--bg);
+            scroll-behavior: smooth;
         }
 
         .message {
-            max-width: 70%;
-            padding: 14px 18px;
-            border-radius: 16px;
-            line-height: 1.5;
+            max-width: 85%;
+            padding: var(--space-4) var(--space-5);
+            border-radius: var(--radius-lg);
+            line-height: 1.6;
             word-wrap: break-word;
-            animation: fadeIn 0.3s ease;
+            animation: fadeIn 0.3s var(--ease-standard);
         }
 
         .user {
-            background: linear-gradient(135deg, #4ade80, #22c55e);
-            color: #fff;
+            background: var(--accent);
+            color: var(--accent-on);
             align-self: flex-end;
-            border-bottom-right-radius: 4px;
-            max-width: 100%;
+            border-bottom-right-radius: var(--radius-sm);
         }
 
         .assistant {
-            background: rgba(255,255,255,0.95);
-            color: #1a1a1a;
+            background: var(--surface);
+            color: var(--fg);
             align-self: flex-start;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            max-width: 100%;
+            border: 1px solid var(--border);
+            border-bottom-left-radius: var(--radius-sm);
+            box-shadow: var(--elev-raised);
         }
 
-        .input-box {
-            display: flex;
-            padding: 12px 20px;
-            background: rgba(255,255,255,0.95);
-            border-top: 1px solid #e0e0e0;
-            gap: 12px;
+        .message b {
+            display: inline-block;
+            font-size: var(--text-xs);
+            padding: 2px 8px;
+            border-radius: var(--radius-pill);
+            margin-bottom: var(--space-2);
+            font-weight: 500;
+        }
+        .user b {
+            background: rgba(255,255,255,0.2);
+            color: var(--accent-on);
+        }
+        .assistant b {
+            background: var(--bg);
+            color: var(--muted);
         }
 
-        textarea {
-            flex: 1;
-            resize: none;
-            border-radius: 10px;
-            padding: 12px;
-            font-size: 14px;
-            outline: none;
-            border: 1px solid #e0e0e0;
-            background: #fff;
-            color: #1a1a1a;
-            transition: all 0.2s;
-            min-height: 120px;
+        /* Message typography (marked.js output) */
+        .message p { margin: var(--space-2) 0; }
+        .message p:first-child { margin-top: 0; }
+        .message p:last-child { margin-bottom: 0; }
+        .message ul, .message ol { padding-left: var(--space-6); margin: var(--space-2) 0; }
+        .message code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            background: var(--bg);
+            padding: 1px 5px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
         }
-
-            textarea:focus {
-                border-color: #4ade80;
-                box-shadow: 0 0 0 2px rgba(74,222,128,0.2);
-            }
-
-        button[type="submit"] {
-            background: #4ade80;
-            color: #fff;
-            font-weight: bold;
+        .user code {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.2);
+            color: var(--accent-on);
+        }
+        .message pre {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: var(--space-3);
+            overflow-x: auto;
+            margin: var(--space-2) 0;
+        }
+        .message pre code {
+            background: none;
+            padding: 0;
             border: none;
-            border-radius: 10px;
-            padding: 0 20px;
-            cursor: pointer;
-            transition: all 0.2s;
         }
-
-            button[type="submit"]:hover {
-                background: #22c55e;
-            }
-
-        ::-webkit-scrollbar {
-            width: 8px;
+        .message blockquote {
+            border-left: 3px solid var(--accent);
+            padding-left: var(--space-3);
+            margin: var(--space-2) 0;
+            color: var(--muted);
         }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0,0,0,0.15);
-            border-radius: 4px;
+        .message a { color: var(--accent); }
+        .message table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: var(--space-2) 0;
+            font-size: var(--text-sm);
         }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: rgba(0,0,0,0.3);
-            }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
+        .message th, .message td {
+            border: 1px solid var(--border);
+            padding: var(--space-1) var(--space-2);
         }
+        .message th { background: var(--bg); font-weight: 600; }
 
-        /* 思考块：模型推理过程的可折叠容器，默认隐藏，仅在收到 reasoning 帧后展开
-           紧凑版：padding/margin/font-size/line-height 全部收紧,长推理不占版面 */
+        /* --- Think Block --- */
         .think-block {
             display: none;
-            background: #f7f7f8;
-            border-left: 2px solid #9ca3af;
-            padding: 5px 9px 6px;
-            border-radius: 6px;
-            margin-bottom: 6px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            padding: var(--space-3) var(--space-4);
+            border-radius: var(--radius-sm);
+            margin-bottom: var(--space-4);
         }
         .think-block.visible { display: block; }
         .think-block.hidden .think-content { display: none; }
+
         .think-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 3px;
-            color: #6b7280;
-            font-size: 11px;
+            margin-bottom: var(--space-2);
+            color: var(--muted);
+            font-size: var(--text-xs);
             font-weight: 600;
         }
+
         .think-content {
-            font-size: 12px;
-            color: #4b5563;
-            line-height: 1.4;
+            font-size: var(--text-sm);
+            color: var(--muted);
+            line-height: 1.5;
             white-space: pre-wrap;
         }
+
         .think-toggle {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: var(--text-xs);
+            font-family: var(--font-body);
+            padding: 2px 8px;
+            transition: all var(--motion-fast) var(--ease-standard);
+        }
+        .think-toggle:hover {
+            background: var(--bg);
+            color: var(--fg);
+            border-color: var(--muted);
+        }
+        .think-toggle:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        /* --- Answer Block --- */
+        .answer-block b {
+            display: inline-block;
+            font-size: var(--text-xs);
+            color: var(--muted);
+            background: var(--bg);
+            padding: 2px 8px;
+            border-radius: var(--radius-pill);
+            margin-bottom: var(--space-2);
+            font-weight: 500;
+        }
+
+        .message-content {
+            line-height: 1.6;
+            color: var(--fg);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+         * Input Area
+         * ═══════════════════════════════════════════════════════════════════ */
+        .input-box {
+            display: flex;
+            flex-direction: column;
+            padding: var(--space-4) var(--space-6);
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: var(--space-3);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-3) var(--space-4);
+            transition: border-color var(--motion-fast) var(--ease-standard),
+                        box-shadow var(--motion-fast) var(--ease-standard);
+        }
+        .input-wrapper:focus-within {
+            border-color: var(--accent);
+            box-shadow: var(--focus-ring);
+        }
+
+        .input-box textarea {
+            flex: 1;
             border: none;
             background: transparent;
-            color: #6b7280;
+            font-family: var(--font-body);
+            font-size: var(--text-base);
+            color: var(--fg);
+            resize: none;
+            outline: none;
+            line-height: 1.5;
+            padding: var(--space-1) 0;
+            min-height: 24px;
+            max-height: 200px;
+        }
+
+        .input-box textarea::placeholder {
+            color: var(--muted);
+        }
+
+        .input-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-1);
+            flex-shrink: 0;
+        }
+
+        .send-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            background: var(--accent);
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            font-size: 11px;
-            padding: 0 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-on);
+            transition: background var(--motion-fast) var(--ease-standard);
+            flex-shrink: 0;
+        }
+        .send-btn:hover { background: var(--accent-hover); }
+        .send-btn:active { background: var(--accent-active); }
+        .send-btn:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        .input-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: var(--space-3);
+            font-size: var(--text-xs);
+            color: var(--muted);
+        }
+
+        .input-hints {
+            display: flex;
+            gap: var(--space-3);
+        }
+
+        .input-hint {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .kbd {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            padding: 1px 5px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            color: var(--muted);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+         * Focus Ring — global
+         * ═══════════════════════════════════════════════════════════════════ */
+        button:focus-visible,
+        .chip:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+         * Animations
+         * ═══════════════════════════════════════════════════════════════════ */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
     </style>
 
@@ -267,7 +563,7 @@
 <body>
     <div class="session-list">
         <div class="session-list-header">
-            会话列表
+            <div class="session-list-title">会话列表</div>
             <button class="new-chat-btn" id="newChatBtn">＋ 新聊天</button>
         </div>
         <ul id="sessionList"></ul>
@@ -276,7 +572,7 @@
     <div class="chat-section">
         <div class="top-bar">
             <button class="sync-btn" id="sync-history-btn">同步历史数据</button>
-            <label for="modelType">选择模型：</label>
+            <label for="modelType">模型：</label>
             <select id="modelType">
                 <option value="1" selected>阿里百炼</option>
                 <option value="2">豆包</option>
@@ -285,21 +581,52 @@
                 <option value="5">DeepSeek</option>
                 <option value="6">本地模型(Qwen2.5)</option>
             </select>
+            <div class="model-chips" id="modelChips">
+                <button type="button" class="model-chip active" data-value="1">阿里百炼</button>
+                <button type="button" class="model-chip" data-value="2">豆包</button>
+                <button type="button" class="model-chip" data-value="3">百炼RAG</button>
+                <button type="button" class="model-chip" data-value="4">阿里百炼MCP</button>
+                <button type="button" class="model-chip" data-value="5">DeepSeek</button>
+                <button type="button" class="model-chip" data-value="6">本地模型</button>
+            </div>
         </div>
 
         <div class="chat-container" id="chat-container"></div>
 
         <form class="input-box" id="chat-form">
-            <textarea id="question" placeholder="请输入你的问题..." required></textarea>
-            <button type="submit">发送</button>
+            <div class="input-wrapper">
+                <textarea id="question" placeholder="请输入你的问题..." required></textarea>
+                <div class="input-actions">
+                    <button type="submit" class="send-btn" title="发送 (Enter)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="input-toolbar">
+                <div class="input-hints">
+                    <span class="input-hint"><kbd class="kbd">Enter</kbd> 发送</span>
+                    <span class="input-hint"><kbd class="kbd">Shift+Enter</kbd> 换行</span>
+                    <span class="input-hint"><kbd class="kbd">↑↓</kbd> 历史</span>
+                </div>
+            </div>
         </form>
     </div>
 
     <script>
-        
-        // 初始就按"没有真实会话"处理：tempSession=true,与 currentSessionId=null 配套。
-        // 否则 loadSessions() 还在异步飞时用户抢跑发消息,submit handler 会撞进
-        // sessions[null].messages.push(...) 抛 "Cannot read properties of undefined"。
+        // ═══════════════════════════════════════════════════════════════════
+        // Model chip buttons → sync hidden <select>
+        // ═══════════════════════════════════════════════════════════════════
+        document.getElementById('modelChips').addEventListener('click', (e) => {
+            const chip = e.target.closest('.model-chip');
+            if (!chip) return;
+            document.getElementById('modelType').value = chip.dataset.value;
+            document.querySelectorAll('.model-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+        });
+
+        // ═══════════════════════════════════════════════════════════════════
+        // State
+        // ═══════════════════════════════════════════════════════════════════
         let currentSessionId = null, tempSession = true, isSubmitting = false;
         const sessions = {};
         const sessionList = document.getElementById('sessionList');
@@ -357,7 +684,7 @@
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message', role);
             const safeHtml = DOMPurify.sanitize(marked.parse(content));
-            msgDiv.innerHTML = `<b>${role === 'user' ? '你' : 'AI'}:</b><br>${safeHtml}`;
+            msgDiv.innerHTML = `<b>${role === 'user' ? '你' : 'AI'}</b><br>${safeHtml}`;
             chatContainer.appendChild(msgDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
             return msgDiv;
@@ -387,7 +714,9 @@
                 const delBtn = document.createElement('button');
                 delBtn.textContent = '🗑';
                 delBtn.title = '删除会话';
-                delBtn.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:14px;padding:0 4px;';
+                delBtn.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:14px;padding:0 4px;opacity:0.6;transition:opacity 0.15s;';
+                delBtn.onmouseenter = () => { delBtn.style.opacity = '1'; };
+                delBtn.onmouseleave = () => { delBtn.style.opacity = '0.6'; };
                 delBtn.onclick = (e) => { e.stopPropagation(); deleteSession(id); };
 
                 li.appendChild(nameSpan);
@@ -407,7 +736,6 @@
                 const data = await res.json();
                 if (data.success) {
                     delete sessions[id];
-                    // 删除的是当前会话则清空主区域并回到新会话态
                     if (String(id) === currentSessionId) {
                         currentSessionId = 'temp';
                         tempSession = true;
@@ -460,7 +788,6 @@
             const decoder = new TextDecoder();
             let lineBuffer = '';
 
-            // 创建助手气泡，内部放两个独立内容容器：思考块 + 答案块，便于流式增量渲染
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message', 'assistant');
             msgDiv.innerHTML = `
@@ -472,7 +799,7 @@
                     <div class="think-content"></div>
                 </div>
                 <div class="answer-block">
-                    <b>AI:</b><br><div class="message-content"></div>
+                    <b>AI</b><br><div class="message-content"></div>
                 </div>
             `;
             chatContainer.appendChild(msgDiv);
@@ -485,30 +812,18 @@
                 thinkToggle.textContent = thinkBlock.classList.contains('hidden') ? '显示' : '隐藏';
             });
 
-            // 思考内容：默认 display:none,首个 reasoning 帧到达时再展开
             let thinkText = '';
-            // 累计完整文本（仅最终答案）。
-            // 流式期间只做 O(text.size) 的 textContent 追加,不做 marked+DOMPurify parse;
-            // 等 [DONE] / 流结束再做一次完整 markdown 解析。修前每个 chunk 都 parse
-            // 已累积全段 → O(n²) 总量,长响应中段会占主线程 50-200ms/chunk,
-            // 把 textarea 输入事件全排到后面,表现为"卡顿"。
             let fullText = '';
 
-            // RAF 节流:同一帧内的多个 chunk 合并成一次 DOM 写。配合 textContent,
-            // 整个流式过程主线程几乎空闲,输入事件不被挤压。
             let pendingFrame = null;
             let dirtyThink = false;
             let dirtyContent = false;
 
             const renderTextPlain = (el, text) => {
-                // 流式期间走 textContent,O(text.size) 纯字符串赋值,
-                // 不触发 marked 解析、DOM 树重建、scroll layout flush
                 el.textContent = text;
             };
 
             const renderFinalMarkdown = () => {
-                // 流结束一次性 marked.parse + DOMPurify.sanitize。
-                // 文本量比单 chunk 大但只跑一次,O(n) 可接受,流结束后看到完整 markdown。
                 if (thinkText) {
                     thinkContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(thinkText));
                 }
@@ -528,7 +843,6 @@
                 }
             };
 
-            // [DONE] 和 reader done 两个路径都可能收尾,谁先到谁负责;后者是 no-op
             let finalRendered = false;
             const flushAndRenderFinal = () => {
                 if (finalRendered) return;
@@ -557,7 +871,6 @@
                 }
                 try {
                     const j = JSON.parse(dataStr);
-                    // 方案2：新会话由服务端生成 sessionId，经首帧回传，这里据此建立会话
                     if (j.sessionId) {
                         const newId = String(j.sessionId);
                         sessions[newId] = {
@@ -570,12 +883,10 @@
                         return;
                     }
                     if (j.error) {
-                        // 错误帧文本短,直接 innerHTML 一次;走 RAF 没意义
                         contentDiv.innerHTML = DOMPurify.sanitize(marked.parse('[错误] ' + j.error));
                         return;
                     }
                     if (j.reasoning) {
-                        // 首个 reasoning 帧：展开思考块（否则一直 display:none）
                         if (!thinkBlock.classList.contains('visible')) {
                             thinkBlock.classList.add('visible');
                         }
@@ -607,16 +918,12 @@
                     }
                 }
             }
-            // 处理不带换行符的最后一行
             if (lineBuffer.startsWith('data: ')) {
                 handleData(lineBuffer.slice(6));
             }
 
-            // 兜底:即使服务端没发 [DONE] 帧就关闭连接,也保证最终 markdown 解析跑一次
             flushAndRenderFinal();
 
-            // 将完整回复写入前端会话模型（sessionId 帧已确保会话条目存在）
-            // thinkText 故意不写 —— 思考是过程态，按计划不进入会话历史、不入库、不在"同步历史"后重渲染
             if (fullText && sessions[currentSessionId]) {
                 sessions[currentSessionId].messages.push({ role: 'assistant', content: fullText });
             }
@@ -631,12 +938,7 @@
 
             appendMessage('user', question);
 
-            // 方案2：新旧会话都走流式。新会话传空 sessionId，由服务端生成并经 SSE 首帧回传
-            // try/finally 兜底：即便流式过程抛异常，也必须重置 isSubmitting，否则发送按钮会永久锁死
             try {
-                // 守卫:sessions[currentSessionId] 必须存在才进数组。极端竞态(被删了、
-                // loadSessions 还没 populate 完且 tempSession 被误置)下,不写就是漏一条
-                // 用户消息历史,远比炸整个 chat 流要轻。
                 if (!tempSession && sessions[currentSessionId]) {
                     sessions[currentSessionId].messages.push({ role: 'user', content: question });
                 }
@@ -692,21 +994,17 @@
                     });
                     renderSessionList();
                 }
-                // 如果没有会话，自动进入新建会话状态，直接可以输入
                 if (Object.keys(sessions).length === 0) {
                     currentSessionId = null;
                     tempSession = true;
                 }
             } catch (err) {
                 console.error('获取会话列表失败', err);
-                // 网络失败时也允许直接输入
                 currentSessionId = null;
                 tempSession = true;
             }
         }
 
-        // 入口校验:已登录则加载会话列表,未登录则跳 entry.html 登录/注册
-        // 之前用 prompt() 内嵌登录已废弃,改回独立的登录注册页(/entry)
         if (sessionStorage.getItem('userId')) {
             loadSessions();
         } else {

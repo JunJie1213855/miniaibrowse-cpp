@@ -52,6 +52,7 @@ private:
 	friend class ChatSessionsHandler;
 	friend class ChatStreamHandler;
 	friend class ChatDeleteSessionHandler;
+	friend class ChatRenameSessionHandler;
 
 private:
 	void initialize();

@@ -202,11 +202,17 @@ void HttpServer::handleRequest(const HttpRequest &req, HttpResponse *resp)
         // 处理中间件抛出的响应（如CORS预检请求）
         *resp = res;
     }
-    catch (const std::exception& e) 
+    catch (const std::exception& e)
     {
         // 错误处理
+        // 必须同时设 version + statusMessage,否则 appendToBuffer 写出 "HTTP/1.1 500 \r\n"
+        // 这种缺 reason 的状态行,curl/fetch 会判 HTTP/0.9 → 解析失败,前端表现为"没反应"
+        resp->setVersion("HTTP/1.1");
         resp->setStatusCode(HttpResponse::k500InternalServerError);
-        resp->setBody(e.what());
+        resp->setStatusMessage("Internal Server Error");
+        resp->setContentType("text/plain; charset=utf-8");
+        resp->setCloseConnection(true);
+        resp->setBody(std::string("Internal Server Error: ") + e.what());
     }
 }
 

@@ -8,6 +8,7 @@
 
 
 #include"../include/handlers/ChatSessionsHandler.h"
+#include"../include/handlers/ChatRenameSessionHandler.h"
 #include"../include/handlers/ChatStreamHandler.h"
 #include"../include/handlers/ChatDeleteSessionHandler.h"
 
@@ -133,6 +134,7 @@ void ChatServer::initializeRouter() {
 
     httpServer_.Get("/chat/sessions", std::make_shared<ChatSessionsHandler>(this));
     httpServer_.Post("/chat/delete-session", std::make_shared<ChatDeleteSessionHandler>(this));
+    httpServer_.Post("/chat/rename", std::make_shared<ChatRenameSessionHandler>(this));
 }
 
 void ChatServer::initializeSession() {
