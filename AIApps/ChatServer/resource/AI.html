@@ -308,17 +308,19 @@
             box-shadow: inset var(--focus-ring);
         }
 
-        /* --- Messages wrapper (holds chat + marker track as siblings) --- */
-        .chat-messages-wrapper {
+        /* --- Scroll area: flex wrapper holding chat + position rail as siblings --- */
+        .chat-scroll-area {
             flex: 1;
-            position: relative;
-            overflow: hidden;
+            display: flex;
             min-height: 0;
+            position: relative;
+            background: var(--bg);
         }
 
         /* --- Messages --- */
         .chat-container {
-            height: 100%;
+            flex: 1;
+            min-width: 0;
             overflow-y: auto;
             padding: var(--space-6);
             display: flex;
@@ -328,66 +330,139 @@
             scroll-behavior: smooth;
         }
 
-        /* --- Scroll Marker Track — outside scroll container, fixed in viewport --- */
-        .scroll-marker-track {
-            position: absolute;
-            right: 4px;
-            top: 0;
-            bottom: 0;
-            width: 12px;
-            z-index: 10;
-            pointer-events: none;
-            background: transparent;
+        /* --- Position Rail — flex sibling of chat-container, fixed navigation track --- */
+        .position-rail {
+            flex-shrink: 0;
+            width: 32px;
+            padding: 12px 8px;
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            user-select: none;
+            z-index: 5;
         }
 
-        .marker-dot {
+        .position-rail-track {
+            position: relative;
+            width: 16px;
+            height: 100%;
+            background: color-mix(in oklab, var(--muted) 10%, transparent);
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            transition: background var(--motion-fast);
+        }
+        .position-rail-track:hover {
+            background: color-mix(in oklab, var(--muted) 18%, transparent);
+        }
+
+        /* Scroll thumb — shows current viewport position, sized & positioned by JS */
+        .position-rail-thumb {
+            position: absolute;
+            left: 1px;
+            right: 1px;
+            background: var(--muted);
+            border-radius: var(--radius-pill);
+            opacity: 0.5;
+            transition: opacity var(--motion-fast);
+            pointer-events: none;
+        }
+        .position-rail-track:hover .position-rail-thumb {
+            opacity: 0.75;
+        }
+
+        /* Empty-state label when no user messages exist */
+        .position-rail-empty {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            transform-origin: center;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            white-space: nowrap;
+            text-transform: uppercase;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* Anchor dots — one per user message, centered on the track */
+        .position-anchor {
             position: absolute;
             left: 50%;
-            width: 6px;
-            height: 6px;
+            transform: translate(-50%, -50%);
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border: 2px solid var(--surface);
             border-radius: 50%;
-            background: var(--danger);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
             cursor: pointer;
             pointer-events: auto;
-            transform: translate(-50%, -50%);
-            transition: width var(--motion-fast) var(--ease-standard),
-                        height var(--motion-fast) var(--ease-standard),
-                        box-shadow var(--motion-fast) var(--ease-standard);
+            z-index: 2;
+            box-shadow: 0 0 0 1px var(--accent),
+                        0 1px 3px color-mix(in oklab, var(--fg) 12%, transparent);
+            transition: transform var(--motion-fast),
+                        box-shadow var(--motion-fast);
         }
-        .marker-dot:hover {
-            width: 8px;
-            height: 8px;
-            box-shadow: 0 0 8px rgba(220, 38, 38, 0.5),
-                        0 1px 3px rgba(0, 0, 0, 0.15);
+        .position-anchor:hover {
+            transform: translate(-50%, -50%) scale(1.25);
+            box-shadow: 0 0 0 1px var(--accent),
+                        0 0 0 5px color-mix(in oklab, var(--accent) 22%, transparent);
+        }
+        .position-anchor.active {
+            transform: translate(-50%, -50%) scale(1.2);
+            box-shadow: 0 0 0 1px var(--accent),
+                        0 0 0 5px color-mix(in oklab, var(--accent) 18%, transparent);
         }
 
-        /* Tooltip — shows truncated message on hover, positioned to the left */
-        .marker-dot::after {
-            content: attr(data-tip);
+        /* Tooltip — message preview on hover, positioned to the left */
+        .position-anchor-tooltip {
             position: absolute;
-            right: calc(100% + 10px);
+            right: calc(100% + 8px);
             top: 50%;
             transform: translateY(-50%);
-            white-space: nowrap;
-            max-width: 260px;
-            overflow: hidden;
-            text-overflow: ellipsis;
             background: var(--fg);
             color: var(--surface);
+            padding: 5px 10px;
+            border-radius: var(--radius-sm);
             font-size: var(--text-xs);
             font-family: var(--font-body);
-            font-weight: 400;
-            line-height: var(--leading-tight);
-            padding: 4px 10px;
-            border-radius: var(--radius-sm);
-            box-shadow: var(--elev-raised);
-            pointer-events: none;
+            white-space: nowrap;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
             opacity: 0;
-            transition: opacity var(--motion-fast) var(--ease-standard);
+            pointer-events: none;
+            transition: opacity var(--motion-fast);
+            z-index: 10;
         }
-        .marker-dot:hover::after {
+        .position-anchor:hover .position-anchor-tooltip,
+        .position-anchor.active .position-anchor-tooltip {
             opacity: 1;
+        }
+
+        /* Number label — #1, #2, etc. on hover */
+        .position-anchor-num {
+            position: absolute;
+            right: calc(100% + 4px);
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--muted);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--motion-fast);
+        }
+        .position-anchor:hover .position-anchor-num,
+        .position-anchor.active .position-anchor-num {
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .position-rail { display: none; }
         }
 
         .message {
@@ -714,8 +789,14 @@
             </div>
         </div>
 
-        <div class="chat-messages-wrapper">
+        <div class="chat-scroll-area">
             <div class="chat-container" id="chat-container"></div>
+            <aside class="position-rail" id="position-rail" aria-label="消息位置映射轨道">
+                <div class="position-rail-track" id="position-rail-track">
+                    <div class="position-rail-thumb" id="position-rail-thumb"></div>
+                    <div class="position-rail-empty" id="position-rail-empty">MESSAGES</div>
+                </div>
+            </aside>
         </div>
 
         <form class="input-box" id="chat-form">
@@ -785,79 +866,149 @@
         let historyIndex = -1;
 
         // ═══════════════════════════════════════════════════════════════════
-        // Scroll Marker Track — red dots mark user-message positions
+        // Position Rail — fixed navigation track (flex sibling of chatContainer)
+        //   - Anchors: one per user message, proportional % positioning
+        //   - Thumb: shows current scroll position (scrollbar replacement)
+        //   - Active: highlights the anchor closest to viewport centre
+        //   - Track click: jumps to proportional scroll position
+        //   - Anchor click: scrolls to that specific user message
         // ═══════════════════════════════════════════════════════════════════
-        // Track lives in the wrapper (sibling of chatContainer), outside the
-        // scroll area, so it stays fixed in viewport when content scrolls.
-        const markerWrapper = chatContainer.parentElement; // .chat-messages-wrapper
-        const markerTrack = document.createElement('div');
-        markerTrack.className = 'scroll-marker-track';
-        markerWrapper.appendChild(markerTrack);
+        const positionRail       = document.getElementById('position-rail');
+        const positionRailTrack  = document.getElementById('position-rail-track');
+        const positionRailThumb  = document.getElementById('position-rail-thumb');
+        const positionRailEmpty  = document.getElementById('position-rail-empty');
 
-        let markersPending = false;
-        function scheduleMarkerUpdate() {
-            if (markersPending) return;
-            markersPending = true;
-            requestAnimationFrame(() => {
-                markersPending = false;
-                updateMessageMarkers();
-            });
+        function getScrollMetrics() {
+            const sh = chatContainer.scrollHeight;
+            const ch = chatContainer.clientHeight;
+            const st = chatContainer.scrollTop;
+            return { scrollHeight: sh, clientHeight: ch, scrollTop: st,
+                     scrollRange: Math.max(1, sh - ch) };
         }
 
-        function updateMessageMarkers() {
-            markerTrack.innerHTML = '';
-
+        function updatePositionRail() {
+            if (!positionRailTrack) return;
             const userMessages = chatContainer.querySelectorAll('.message.user');
-            if (userMessages.length === 0) return;
+            const existing = positionRailTrack.querySelectorAll('.position-anchor');
 
-            const scrollH = chatContainer.scrollHeight;
-            const clientH = chatContainer.clientHeight;
-            // No need for markers if content fits without scrolling
-            if (scrollH <= clientH) return;
+            // Toggle empty hint
+            if (positionRailEmpty)
+                positionRailEmpty.style.display = userMessages.length === 0 ? '' : 'none';
 
-            // Use getBoundingClientRect instead of offsetTop:
-            // offsetTop is unreliable inside flex column + overflow:auto containers.
-            const containerRect = chatContainer.getBoundingClientRect();
+            // Remove excess anchors
+            while (existing.length > userMessages.length) {
+                const last = positionRailTrack.querySelector('.position-anchor:last-child');
+                if (last) last.remove();
+            }
+
+            const { scrollHeight } = getScrollMetrics();
 
             userMessages.forEach((msg, i) => {
-                const msgRect = msg.getBoundingClientRect();
-                // Calculate midpoint of message in absolute scrollable-content coordinates
-                const msgMidInContent =
-                    msgRect.top - containerRect.top + chatContainer.scrollTop + msgRect.height / 2;
-                // Percentage position: (midpoint / totalScrollHeight) * 100%
-                const pct = (msgMidInContent / scrollH) * 100;
+                let anchor = positionRailTrack.querySelectorAll('.position-anchor')[i];
+                if (!anchor) {
+                    anchor = document.createElement('div');
+                    anchor.className = 'position-anchor';
+                    anchor.dataset.index = String(i);
 
-                // Extract message text (strip badge "你" then truncate)
+                    // Number label
+                    const num = document.createElement('div');
+                    num.className = 'position-anchor-num';
+                    anchor.appendChild(num);
+
+                    // Tooltip
+                    const tip = document.createElement('div');
+                    tip.className = 'position-anchor-tooltip';
+                    anchor.appendChild(tip);
+
+                    // Click → scroll to that user message
+                    anchor.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const targetTop = msg.offsetTop - 60;
+                        chatContainer.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+                    });
+
+                    positionRailTrack.appendChild(anchor);
+                }
+
+                // Proportional position (midpoint / total scroll height * 100%)
+                const msgCenter = msg.offsetTop + msg.offsetHeight / 2;
+                const pct = (msgCenter / scrollHeight) * 100;
+                anchor.style.top = pct + '%';
+
+                // Number label
+                const numEl = anchor.querySelector('.position-anchor-num');
+                if (numEl) numEl.textContent = '#' + (i + 1);
+
+                // Tooltip: first ~40 chars of message, whitespace-normalised
                 const badge = msg.querySelector('b');
                 let text = msg.textContent.trim();
                 if (badge) text = text.replace(badge.textContent, '').trim();
-                const MAX_PREVIEW = 50;
-                const preview = text.length > MAX_PREVIEW ? text.substring(0, MAX_PREVIEW) + '…' : text;
-
-                const dot = document.createElement('div');
-                dot.className = 'marker-dot';
-                dot.style.top = pct + '%';
-                dot.setAttribute('data-tip', preview);
-                dot.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                });
-                markerTrack.appendChild(dot);
+                const tipEl = anchor.querySelector('.position-anchor-tooltip');
+                if (tipEl) tipEl.textContent =
+                    text.replace(/\s+/g, ' ').substring(0, 40) || ('消息 ' + (i + 1));
             });
+
+            updateThumb();
+            updateActiveAnchor();
         }
 
-        // ① DOM mutation — new messages, streaming text changes
-        const markerObserver = new MutationObserver(() => scheduleMarkerUpdate());
-        markerObserver.observe(chatContainer, { childList: true, subtree: true, characterData: true });
+        function updateThumb() {
+            if (!positionRailThumb) return;
+            const { scrollHeight, clientHeight, scrollTop, scrollRange } = getScrollMetrics();
+            const thumbPct = (clientHeight / scrollHeight) * 100;
+            const usable = Math.max(0, 100 - thumbPct);
+            positionRailThumb.style.height = thumbPct + '%';
+            positionRailThumb.style.top  = (scrollTop / scrollRange) * usable + '%';
+        }
 
-        // ① (continued) scroll also shifts content
-        chatContainer.addEventListener('scroll', () => scheduleMarkerUpdate());
+        function updateActiveAnchor() {
+            const userMessages = chatContainer.querySelectorAll('.message.user');
+            const anchors = positionRailTrack.querySelectorAll('.position-anchor');
+            if (userMessages.length === 0 || anchors.length === 0) return;
 
-        // ③ Window resize — debounced to avoid layout-thrashing
+            const { scrollTop, clientHeight } = getScrollMetrics();
+            const viewportCenter = scrollTop + clientHeight / 2;
+
+            let activeIdx = 0, minDist = Infinity;
+            userMessages.forEach((msg, i) => {
+                const d = Math.abs(msg.offsetTop + msg.offsetHeight / 2 - viewportCenter);
+                if (d < minDist) { minDist = d; activeIdx = i; }
+            });
+            anchors.forEach((a, i) => a.classList.toggle('active', i === activeIdx));
+        }
+
+        // Track click → proportional scroll jump (ignore clicks on anchors)
+        positionRailTrack.addEventListener('click', (e) => {
+            if (e.target.closest('.position-anchor')) return;
+            const rect = positionRailTrack.getBoundingClientRect();
+            const clickPct = (e.clientY - rect.top) / rect.height;
+            const { scrollHeight, clientHeight } = getScrollMetrics();
+            chatContainer.scrollTo({
+                top: clickPct * (scrollHeight - clientHeight),
+                behavior: 'smooth'
+            });
+        });
+
+        // Scroll → update thumb + active anchor
+        chatContainer.addEventListener('scroll', () => {
+            updateThumb();
+            updateActiveAnchor();
+        });
+
+        // DOM changes + resize → rebuild anchors
+        const railMutationObs = new MutationObserver(() => updatePositionRail());
+        railMutationObs.observe(chatContainer, { childList: true, subtree: true, characterData: true });
+
+        if (typeof ResizeObserver !== 'undefined') {
+            const railResizeObs = new ResizeObserver(() => updatePositionRail());
+            railResizeObs.observe(chatContainer);
+            railResizeObs.observe(positionRailTrack);
+        }
+
         let resizeDebounce = 0;
         window.addEventListener('resize', () => {
             clearTimeout(resizeDebounce);
-            resizeDebounce = setTimeout(() => scheduleMarkerUpdate(), 100);
+            resizeDebounce = setTimeout(() => updatePositionRail(), 100);
         });
 
         function saveInputHistory() {

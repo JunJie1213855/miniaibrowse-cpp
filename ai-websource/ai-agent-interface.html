@@ -301,15 +301,30 @@ html, body {
 }
 .icon-btn:hover { background: var(--bg); color: var(--fg); }
 
-/* Messages */
+/* Scroll area — flex parent of chat-messages + position-rail (so the rail
+ * sits outside the scrollable region and never disappears). */
+.chat-scroll-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+  background: var(--bg);
+}
+
+/* Messages — native scrollbar hidden; navigation is done via position-rail */
 .chat-messages {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  position: relative;
+  scrollbar-width: none;            /* Firefox */
+  -ms-overflow-style: none;         /* IE/old Edge */
 }
+.chat-messages::-webkit-scrollbar { display: none; }
 
 .msg { display: flex; gap: var(--space-4); max-width: 800px; }
 .msg.user { align-self: flex-end; flex-direction: row-reverse; }
@@ -422,6 +437,9 @@ html, body {
   background: var(--surface);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;        /* center the wrapper + toolbar */
 }
 
 .input-wrapper {
@@ -433,6 +451,8 @@ html, body {
   border-radius: var(--radius-lg);
   padding: var(--space-3) var(--space-4);
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+  width: 100%;
+  max-width: 720px;           /* cap the input so it doesn't stretch to full 1fr */
 }
 .input-wrapper:focus-within {
   border-color: var(--accent);
@@ -496,6 +516,8 @@ html, body {
   margin-top: var(--space-2);
   font-size: var(--text-xs);
   color: var(--muted);
+  width: 100%;
+  max-width: 720px;           /* match the input wrapper width */
 }
 
 .input-hints { display: flex; gap: var(--space-3); }
@@ -679,6 +701,151 @@ html, body {
 .chip:hover { border-color: var(--accent); }
 .chip.active { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 8%, transparent); color: var(--accent); }
 .chip svg { width: 14px; height: 14px; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Position Rail — fixed track that replaces the scrollbar
+ *   - Sits in .chat-scroll-area as a flex sibling of .chat-messages, so
+ *     it never scrolls with the content (it is the navigation).
+ *   - Track has visible width; anchors sit *inside* the track.
+ *   - Track clickable → jumps to that scroll position.
+ *   - Thumb shows the current scroll position (scrollbar replacement).
+ *   - Anchors are positioned by PROPORTIONAL location in the scroll
+ *     range (percent), not absolute pixels.
+ * ───────────────────────────────────────────────────────────────────────── */
+.position-rail {
+  flex-shrink: 0;
+  width: 32px;
+  padding: 12px 8px;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  user-select: none;
+  z-index: 5;
+}
+
+.position-rail-track {
+  position: relative;
+  width: 16px;
+  height: 100%;
+  background: color-mix(in oklab, var(--muted) 10%, transparent);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--motion-fast);
+}
+
+.position-rail-track:hover {
+  background: color-mix(in oklab, var(--muted) 18%, transparent);
+}
+
+/* Scroll thumb — sits on the track, sized & positioned by JS as a
+ * percentage of the scroll range. Replaces the native scrollbar. */
+.position-rail-thumb {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  background: var(--muted);
+  border-radius: var(--radius-pill);
+  opacity: 0.5;
+  transition: opacity var(--motion-fast);
+  pointer-events: none;
+}
+
+.position-rail-track:hover .position-rail-thumb {
+  opacity: 0.75;
+}
+
+.position-rail-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  white-space: nowrap;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Anchors sit centered on the track; visually inside the track width. */
+.position-anchor {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2;
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px color-mix(in oklab, var(--fg) 12%, transparent);
+  transition: transform var(--motion-fast), box-shadow var(--motion-fast);
+}
+
+.position-anchor:hover {
+  transform: translate(-50%, -50%) scale(1.25);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.position-anchor.active {
+  transform: translate(-50%, -50%) scale(1.2);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.position-anchor-tooltip {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--fg);
+  color: var(--surface);
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast);
+  z-index: 10;
+}
+
+.position-anchor:hover .position-anchor-tooltip,
+.position-anchor.active .position-anchor-tooltip {
+  opacity: 1;
+}
+
+.position-anchor-num {
+  position: absolute;
+  right: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast);
+}
+
+.position-anchor:hover .position-anchor-num,
+.position-anchor.active .position-anchor-num {
+  opacity: 1;
+  color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .position-rail { display: none; }
+}
 </style>
 </head>
 <body>
@@ -806,6 +973,7 @@ html, body {
       </div>
     </div>
 
+    <div class="chat-scroll-area">
     <div class="chat-messages" id="chat-messages">
       <!-- Welcome / empty state -->
       <div class="empty-state" id="empty-state">
@@ -847,6 +1015,17 @@ html, body {
           </div>
         </div>
       </div>
+
+      <!-- Position Rail — flex sibling of chat-messages; sits OUTSIDE the
+           scrollable region, so it never disappears when scrolling. Acts as
+           the navigation track and scrollbar replacement. -->
+    </div>
+    <aside class="position-rail" id="position-rail" aria-label="消息位置映射轨道">
+      <div class="position-rail-track" id="position-rail-track">
+        <div class="position-rail-thumb" id="position-rail-thumb"></div>
+        <div class="position-rail-empty" id="position-rail-empty">USER MESSAGES</div>
+      </div>
+    </aside>
     </div>
 
     <div class="chat-input-area">
@@ -1078,6 +1257,7 @@ function addMessage(role, text, toolCalls) {
 
   messagesContainer.appendChild(msgDiv);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  updatePositionRail();
   return msgDiv;
 }
 
@@ -1154,6 +1334,152 @@ function sendMessage() {
   inputField.style.height = 'auto';
 
   simulateAssistant();
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Position Rail — fixed navigation track that replaces the scrollbar
+ *   - Sits OUTSIDE the scrolling container as a flex sibling, so it never
+ *     disappears when the user scrolls.
+ *   - Anchors are positioned by PROPORTIONAL location in the scroll range
+ *     (percent), not absolute pixels — they stay correctly mapped as
+ *     content grows.
+ *   - Track click jumps to that scroll position; anchor click jumps to
+ *     that specific user message.
+ *   - Thumb shows the current scroll position (scrollbar replacement).
+ * ───────────────────────────────────────────────────────────────────────── */
+const positionRail = document.getElementById('position-rail');
+const positionRailTrack = document.getElementById('position-rail-track');
+const positionRailThumb = document.getElementById('position-rail-thumb');
+const chatMessagesEl = document.getElementById('chat-messages');
+
+function getScrollMetrics() {
+  const scrollHeight = chatMessagesEl.scrollHeight;
+  const clientHeight = chatMessagesEl.clientHeight;
+  const scrollTop = chatMessagesEl.scrollTop;
+  const scrollRange = Math.max(1, scrollHeight - clientHeight);
+  return { scrollHeight, clientHeight, scrollTop, scrollRange };
+}
+
+function updatePositionRail() {
+  if (!positionRail || !positionRailTrack) return;
+  const emptyHint = document.getElementById('position-rail-empty');
+  const userMessages = chatMessagesEl.querySelectorAll('.msg.user');
+  const existingAnchors = positionRailTrack.querySelectorAll('.position-anchor');
+
+  // Toggle empty-state hint visibility
+  if (emptyHint) emptyHint.style.display = userMessages.length === 0 ? '' : 'none';
+
+  // Remove excess anchors if user messages were deleted
+  while (existingAnchors.length > userMessages.length) {
+    const last = positionRailTrack.querySelector('.position-anchor:last-child');
+    if (last) last.remove();
+  }
+
+  const { scrollHeight } = getScrollMetrics();
+
+  userMessages.forEach((msg, i) => {
+    let anchor = positionRailTrack.querySelectorAll('.position-anchor')[i];
+    if (!anchor) {
+      anchor = document.createElement('div');
+      anchor.className = 'position-anchor';
+      anchor.dataset.index = String(i);
+
+      const num = document.createElement('div');
+      num.className = 'position-anchor-num';
+      anchor.appendChild(num);
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'position-anchor-tooltip';
+      anchor.appendChild(tooltip);
+
+      anchor.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetTop = msg.offsetTop - 80;
+        chatMessagesEl.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+      });
+
+      positionRailTrack.appendChild(anchor);
+    }
+
+    // PROPORTIONAL position: where this message sits in the scrollable range.
+    // This is why anchors stay correctly mapped regardless of total content height.
+    const msgCenter = msg.offsetTop + msg.offsetHeight / 2;
+    const percent = (msgCenter / scrollHeight) * 100;
+    anchor.style.top = percent + '%';
+
+    // Update number label
+    const num = anchor.querySelector('.position-anchor-num');
+    if (num) num.textContent = '#' + (i + 1);
+
+    // Update tooltip preview
+    const bubble = msg.querySelector('.msg-bubble');
+    const text = bubble ? bubble.textContent.trim().replace(/\s+/g, ' ').substring(0, 40) : '';
+    const tooltip = anchor.querySelector('.position-anchor-tooltip');
+    if (tooltip) tooltip.textContent = text || ('消息 ' + (i + 1));
+  });
+
+  updateThumb();
+  updateActiveAnchor();
+}
+
+function updateThumb() {
+  if (!positionRailThumb) return;
+  const { scrollHeight, clientHeight, scrollTop, scrollRange } = getScrollMetrics();
+  // Thumb height = fraction of the track that represents the viewport
+  const thumbHeightPct = (clientHeight / scrollHeight) * 100;
+  // Thumb top = fraction of the *remaining* track that scrollTop occupies
+  const usableRange = Math.max(0, 100 - thumbHeightPct);
+  const thumbTopPct = (scrollTop / scrollRange) * usableRange;
+  positionRailThumb.style.height = thumbHeightPct + '%';
+  positionRailThumb.style.top = thumbTopPct + '%';
+}
+
+function updateActiveAnchor() {
+  if (!positionRail) return;
+  const userMessages = chatMessagesEl.querySelectorAll('.msg.user');
+  const anchors = positionRail.querySelectorAll('.position-anchor');
+  if (userMessages.length === 0 || anchors.length === 0) return;
+
+  const { scrollTop, clientHeight } = getScrollMetrics();
+  const viewportCenter = scrollTop + clientHeight / 2;
+
+  let activeIndex = 0;
+  let minDistance = Infinity;
+  userMessages.forEach((msg, i) => {
+    const msgCenter = msg.offsetTop + msg.offsetHeight / 2;
+    const distance = Math.abs(msgCenter - viewportCenter);
+    if (distance < minDistance) {
+      minDistance = distance;
+      activeIndex = i;
+    }
+  });
+
+  anchors.forEach((a, i) => a.classList.toggle('active', i === activeIndex));
+}
+
+// Track click → scroll to that proportional position (scrollbar behavior).
+// Ignores clicks on anchors (handled separately for precise message jump).
+if (positionRailTrack) {
+  positionRailTrack.addEventListener('click', (e) => {
+    if (e.target.closest('.position-anchor')) return;
+    const rect = positionRailTrack.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const clickPct = Math.max(0, Math.min(1, clickY / rect.height));
+    const { scrollHeight, clientHeight } = getScrollMetrics();
+    const targetTop = clickPct * (scrollHeight - clientHeight);
+    chatMessagesEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+  });
+}
+
+chatMessagesEl.addEventListener('scroll', () => {
+  updateThumb();
+  updateActiveAnchor();
+});
+
+if (typeof ResizeObserver !== 'undefined') {
+  const railResizeObserver = new ResizeObserver(() => updatePositionRail());
+  railResizeObserver.observe(chatMessagesEl);
+  if (positionRailTrack) railResizeObserver.observe(positionRailTrack);
 }
 </script>
 </body>

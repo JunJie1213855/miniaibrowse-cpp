@@ -39,7 +39,7 @@ void AIHelper::restoreMessage(const std::string& userInput,long long ms) {
 // 发送聊天消息
 std::string AIHelper::chat(int userId,std::string userName, std::string sessionId, std::string userQuestion, std::string modelType) {
 
-    //设置策略
+    //设置策略(LLM模型)
     std::cout << "[LocalLLM] creating strategy with modelType=" << modelType << std::endl;
     setStrategy(StrategyFactory::instance().create(modelType));
     std::cout << "[LocalLLM] after setStrategy, URL=" << strategy->getApiUrl()

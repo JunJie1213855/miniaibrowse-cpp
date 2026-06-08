@@ -26,6 +26,7 @@ void ChatSendHandler::handle(const http::HttpRequest& req, http::HttpResponse* r
         int userId = std::stoi(session->getValue("userId"));
         std::string username = session->getValue("username");
 
+        // 惰性加载
         server_->ensureUserDataLoaded(userId);
 
         std::string userQuestion;
