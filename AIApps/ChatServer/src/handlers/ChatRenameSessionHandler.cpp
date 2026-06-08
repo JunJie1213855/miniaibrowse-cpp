@@ -30,6 +30,8 @@ void ChatRenameSessionHandler::handle(const http::HttpRequest& req, http::HttpRe
 
         int userId = std::stoi(session->getValue("userId"));
 
+        server_->ensureUserDataLoaded(userId);
+
         if (req.getBody().empty())
         {
             json errorResp;

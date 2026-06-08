@@ -22,6 +22,8 @@ void ChatDeleteSessionHandler::handle(const http::HttpRequest& req, http::HttpRe
 
         int userId = std::stoi(session->getValue("userId"));
 
+        server_->ensureUserDataLoaded(userId);
+
         std::string sessionId;
         auto body = req.getBody();
         if (!body.empty()) {

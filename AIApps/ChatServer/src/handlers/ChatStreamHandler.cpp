@@ -20,6 +20,8 @@ void ChatStreamHandler::handle(const http::HttpRequest &req, http::HttpResponse 
     int userId = std::stoi(session->getValue("userId"));
     std::string username = session->getValue("username");
 
+    server_->ensureUserDataLoaded(userId);
+
     std::string userQuestion;
     std::string modelType;
     std::string sessionId;
@@ -154,10 +156,14 @@ void ChatStreamHandler::handle(const http::HttpRequest &req, http::HttpResponse 
             buf.append(errLine);
             conn->send(&buf);
         }
-        // 流式回复写回历史并异步入库；不写回会破坏 "偶数=用户/奇数=助手" 的下标约定，
-        // 导致后续轮次 role 错位、且重启后无法恢复助手消息
+        // 流式回复写回历史并异步入库：
+        // 不写回会破坏 "偶数=用户/奇数=助手" 的下标约定，导致后续轮次 role 错位，
+        // 刷新页面或重启服务后所有消息角色互换（用户变 AI、AI 变用户）。
         if (!fullReply->empty()) {
             AIHelperPtr->addMessage(userId, username, false, *fullReply, sessionId);
+        } else {
+            // 流失败且没有任何内容到达：写入占位错误消息以保持奇偶校验
+            AIHelperPtr->addMessage(userId, username, false, "[错误] AI 回复失败，请重试", sessionId);
         }
         // 发送结束标记
         {

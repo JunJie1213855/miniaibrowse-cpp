@@ -44,6 +44,8 @@ void ChatSessionsHandler::handle(const http::HttpRequest& req, http::HttpRespons
         int userId = std::stoi(session->getValue("userId"));
         std::string username = session->getValue("username");
 
+        server_->ensureUserDataLoaded(userId);
+
         std::vector<std::string> sessions;
         {
             std::lock_guard<std::mutex> lock(server_->mutexForSessionsId);

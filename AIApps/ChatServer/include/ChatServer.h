@@ -40,6 +40,7 @@ public:
 	void setThreadNum(int numThreads);
 	void start();
 	void initChatMessage();
+	void ensureUserDataLoaded(int userId);
 private:
 	friend class ChatLoginHandler;
 	friend class ChatRegisterHandler;

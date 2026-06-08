@@ -26,6 +26,8 @@ void ChatSendHandler::handle(const http::HttpRequest& req, http::HttpResponse* r
         int userId = std::stoi(session->getValue("userId"));
         std::string username = session->getValue("username");
 
+        server_->ensureUserDataLoaded(userId);
+
         std::string userQuestion;
         std::string modelType;
         std::string sessionId;

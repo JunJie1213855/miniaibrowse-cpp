@@ -25,6 +25,8 @@ void ChatHistoryHandler::handle(const http::HttpRequest& req, http::HttpResponse
         int userId = std::stoi(session->getValue("userId"));
         std::string username = session->getValue("username");
 
+        server_->ensureUserDataLoaded(userId);
+
         std::string sessionId;
         auto body = req.getBody();
         if (!body.empty()) {
