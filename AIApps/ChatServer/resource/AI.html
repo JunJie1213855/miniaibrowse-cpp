@@ -14,7 +14,7 @@
             --muted: #6b6b6b;
             --border: #e5e5e5;
             --accent: #4ade80;
-            --accent-on: #ffffff;
+            --accent-on: #111111;
             --accent-hover: color-mix(in oklab, var(--accent), black 12%);
             --accent-active: color-mix(in oklab, var(--accent), black 20%);
             --accent-subtle: color-mix(in oklab, var(--accent) 10%, transparent);
@@ -148,10 +148,10 @@
         }
 
         .session-list li.active {
-            background: var(--accent);
-            color: var(--accent-on);
+            background: var(--accent-subtle);
+            color: var(--fg);
             font-weight: 500;
-            border-color: var(--accent);
+            border-color: color-mix(in oklab, var(--accent) 35%, transparent);
         }
 
         .session-list li:hover:not(.active) {
@@ -227,43 +227,98 @@
             box-shadow: var(--focus-ring);
         }
 
-        .model-chips {
-            display: flex;
-            gap: var(--space-2);
-            flex-wrap: wrap;
+        /* --- Collapsible Model Picker --- */
+        .model-picker {
+            position: relative;
+            flex-shrink: 0;
         }
 
-        .model-chip {
+        .model-toggle {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
             padding: var(--space-1) var(--space-3);
-            background: transparent;
+            background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius-pill);
             font-size: var(--text-sm);
             font-family: var(--font-body);
-            color: var(--muted);
+            color: var(--fg);
             cursor: pointer;
             white-space: nowrap;
             transition: border-color var(--motion-fast) var(--ease-standard),
-                        background var(--motion-fast) var(--ease-standard),
-                        color var(--motion-fast) var(--ease-standard);
+                        box-shadow var(--motion-fast) var(--ease-standard);
         }
-        .model-chip:hover {
+        .model-toggle:hover {
             border-color: var(--accent);
         }
-        .model-chip.active {
-            border-color: var(--accent);
+        .model-toggle:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+        .model-toggle .arrow {
+            font-size: 10px;
+            color: var(--muted);
+            transition: transform var(--motion-fast) var(--ease-standard);
+        }
+        .model-picker.open .model-toggle .arrow {
+            transform: rotate(180deg);
+        }
+
+        .model-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + var(--space-1));
+            right: 0;
+            min-width: 180px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--elev-raised);
+            z-index: 10;
+            overflow: hidden;
+        }
+        .model-picker.open .model-dropdown {
+            display: block;
+        }
+
+        .model-option {
+            display: block;
+            width: 100%;
+            padding: var(--space-2) var(--space-4);
+            border: none;
+            background: transparent;
+            font-size: var(--text-sm);
+            font-family: var(--font-body);
+            color: var(--fg);
+            cursor: pointer;
+            text-align: left;
+            transition: background var(--motion-fast) var(--ease-standard);
+        }
+        .model-option:hover {
+            background: var(--accent-subtle);
+        }
+        .model-option.active {
             background: var(--accent-subtle);
             color: var(--accent);
             font-weight: 500;
         }
-        .model-chip:focus-visible {
+        .model-option:focus-visible {
             outline: none;
-            box-shadow: var(--focus-ring);
+            box-shadow: inset var(--focus-ring);
+        }
+
+        /* --- Messages wrapper (holds chat + marker track as siblings) --- */
+        .chat-messages-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
         }
 
         /* --- Messages --- */
         .chat-container {
-            flex: 1;
+            height: 100%;
             overflow-y: auto;
             padding: var(--space-6);
             display: flex;
@@ -271,6 +326,36 @@
             gap: var(--space-6);
             background: var(--bg);
             scroll-behavior: smooth;
+        }
+
+        /* --- Scroll Marker Track — outside scroll container, fixed in viewport --- */
+        .scroll-marker-track {
+            position: absolute;
+            right: 2px;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .marker-dot {
+            position: absolute;
+            right: 2px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--danger);
+            box-shadow: 0 0 3px rgba(220, 38, 38, 0.35);
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform var(--motion-fast) var(--ease-standard),
+                        box-shadow var(--motion-fast) var(--ease-standard);
+        }
+        .marker-dot:hover {
+            transform: scale(2);
+            box-shadow: 0 0 6px rgba(220, 38, 38, 0.55);
+            z-index: 3;
         }
 
         .message {
@@ -283,9 +368,10 @@
         }
 
         .user {
-            background: var(--accent);
-            color: var(--accent-on);
+            background: var(--accent-subtle);
+            color: var(--fg);
             align-self: flex-end;
+            border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
             border-bottom-right-radius: var(--radius-sm);
         }
 
@@ -307,8 +393,8 @@
             font-weight: 500;
         }
         .user b {
-            background: rgba(255,255,255,0.2);
-            color: var(--accent-on);
+            background: color-mix(in oklab, var(--accent) 25%, transparent);
+            color: var(--fg);
         }
         .assistant b {
             background: var(--bg);
@@ -329,9 +415,9 @@
             border: 1px solid var(--border);
         }
         .user code {
-            background: rgba(255,255,255,0.15);
-            border-color: rgba(255,255,255,0.2);
-            color: var(--accent-on);
+            background: color-mix(in oklab, var(--fg) 6%, transparent);
+            border-color: color-mix(in oklab, var(--accent) 25%, transparent);
+            color: var(--fg);
         }
         .message pre {
             background: var(--bg);
@@ -572,7 +658,6 @@
     <div class="chat-section">
         <div class="top-bar">
             <button class="sync-btn" id="sync-history-btn">同步历史数据</button>
-            <label for="modelType">模型：</label>
             <select id="modelType">
                 <option value="1" selected>阿里百炼</option>
                 <option value="2">豆包</option>
@@ -581,17 +666,25 @@
                 <option value="5">DeepSeek</option>
                 <option value="6">本地模型(Qwen2.5)</option>
             </select>
-            <div class="model-chips" id="modelChips">
-                <button type="button" class="model-chip active" data-value="1">阿里百炼</button>
-                <button type="button" class="model-chip" data-value="2">豆包</button>
-                <button type="button" class="model-chip" data-value="3">百炼RAG</button>
-                <button type="button" class="model-chip" data-value="4">阿里百炼MCP</button>
-                <button type="button" class="model-chip" data-value="5">DeepSeek</button>
-                <button type="button" class="model-chip" data-value="6">本地模型</button>
+            <div class="model-picker" id="modelPicker">
+                <button type="button" class="model-toggle" id="modelToggle">
+                    <span id="modelLabel">阿里百炼</span>
+                    <span class="arrow">▾</span>
+                </button>
+                <div class="model-dropdown" id="modelDropdown">
+                    <button type="button" class="model-option active" data-value="1">阿里百炼</button>
+                    <button type="button" class="model-option" data-value="2">豆包</button>
+                    <button type="button" class="model-option" data-value="3">百炼RAG</button>
+                    <button type="button" class="model-option" data-value="4">阿里百炼MCP</button>
+                    <button type="button" class="model-option" data-value="5">DeepSeek</button>
+                    <button type="button" class="model-option" data-value="6">本地模型</button>
+                </div>
             </div>
         </div>
 
-        <div class="chat-container" id="chat-container"></div>
+        <div class="chat-messages-wrapper">
+            <div class="chat-container" id="chat-container"></div>
+        </div>
 
         <form class="input-box" id="chat-form">
             <div class="input-wrapper">
@@ -614,14 +707,32 @@
 
     <script>
         // ═══════════════════════════════════════════════════════════════════
-        // Model chip buttons → sync hidden <select>
+        // Collapsible model picker
         // ═══════════════════════════════════════════════════════════════════
-        document.getElementById('modelChips').addEventListener('click', (e) => {
-            const chip = e.target.closest('.model-chip');
-            if (!chip) return;
-            document.getElementById('modelType').value = chip.dataset.value;
-            document.querySelectorAll('.model-chip').forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
+        const modelPicker = document.getElementById('modelPicker');
+        const modelToggle = document.getElementById('modelToggle');
+        const modelLabel = document.getElementById('modelLabel');
+        const modelDropdown = document.getElementById('modelDropdown');
+
+        modelToggle.addEventListener('click', () => {
+            modelPicker.classList.toggle('open');
+        });
+
+        modelDropdown.addEventListener('click', (e) => {
+            const opt = e.target.closest('.model-option');
+            if (!opt) return;
+            document.getElementById('modelType').value = opt.dataset.value;
+            modelDropdown.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            modelLabel.textContent = opt.textContent;
+            modelPicker.classList.remove('open');
+        });
+
+        // Click outside to close
+        document.addEventListener('click', (e) => {
+            if (!modelPicker.contains(e.target)) {
+                modelPicker.classList.remove('open');
+            }
         });
 
         // ═══════════════════════════════════════════════════════════════════
@@ -640,6 +751,70 @@
         const MAX_INPUT_HISTORY = 50;
         let inputHistory = [];
         let historyIndex = -1;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Scroll Marker Track — red dots mark user-message positions
+        // ═══════════════════════════════════════════════════════════════════
+        // Track lives in the wrapper (sibling of chatContainer), outside the
+        // scroll area, so it stays fixed when content scrolls.
+        const markerWrapper = chatContainer.parentElement; // .chat-messages-wrapper
+        const markerTrack = document.createElement('div');
+        markerTrack.className = 'scroll-marker-track';
+        markerWrapper.appendChild(markerTrack);
+
+        let markersPending = false;
+        function scheduleMarkerUpdate() {
+            if (markersPending) return;
+            markersPending = true;
+            requestAnimationFrame(() => {
+                markersPending = false;
+                updateMessageMarkers();
+            });
+        }
+
+        function updateMessageMarkers() {
+            markerTrack.innerHTML = '';
+
+            const userMessages = chatContainer.querySelectorAll('.message.user');
+            if (userMessages.length === 0) return;
+
+            const scrollH = chatContainer.scrollHeight;
+            const clientH = chatContainer.clientHeight;
+            if (scrollH <= clientH) return;
+
+            // Track is in the wrapper, so its height = wrapper clientHeight = chatContainer clientHeight
+            const trackH = markerTrack.clientHeight || clientH;
+            const dotH = 6;
+            const containerRect = chatContainer.getBoundingClientRect();
+
+            userMessages.forEach((msg, i) => {
+                const msgRect = msg.getBoundingClientRect();
+                // Absolute position of message top within the scrollable content
+                const msgTopInContent = msgRect.top - containerRect.top + chatContainer.scrollTop;
+                const pct = msgTopInContent / scrollH;
+                const topPos = Math.max(0, Math.min(pct * trackH - dotH / 2, trackH - dotH));
+
+                const dot = document.createElement('div');
+                dot.className = 'marker-dot';
+                dot.style.top = topPos + 'px';
+                dot.title = `用户消息 #${i + 1}`;
+                dot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+                markerTrack.appendChild(dot);
+            });
+        }
+
+        // Auto-update markers when children are added/removed or text changes
+        const markerObserver = new MutationObserver(() => scheduleMarkerUpdate());
+        markerObserver.observe(chatContainer, { childList: true, subtree: true, characterData: true });
+
+        // Also update on scroll — message positions relative to viewport change
+        chatContainer.addEventListener('scroll', () => scheduleMarkerUpdate());
+
+        // Recalculate on resize
+        window.addEventListener('resize', () => scheduleMarkerUpdate());
 
         function saveInputHistory() {
             const val = questionInput.value;

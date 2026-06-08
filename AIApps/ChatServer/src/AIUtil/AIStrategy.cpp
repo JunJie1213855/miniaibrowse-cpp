@@ -294,6 +294,15 @@ void AIStrategy::parseResponseStreaming(const std::string &sseLine,
             auto j = json::parse(jsonStr);
             if (j.contains("choices") && !j["choices"].empty()) {
                 auto &choice = j["choices"][0];
+
+                // 检测 finish_reason: "length" 表示模型因 max_tokens 限制被截断
+                if (choice.contains("finish_reason") && choice["finish_reason"].is_string()) {
+                    const std::string reason = choice["finish_reason"].get<std::string>();
+                    if (reason == "length") {
+                        onChunk("error", "⚠️ 回复因 token 限制被截断，请尝试缩短问题或开启新会话");
+                    }
+                }
+
                 // 先提取 reasoning_content（思考过程），必须在 content 之前 —— 帧可能只有 reasoning 无 content
                 // reasoning_content 在推理阶段可能是 null（首帧 / 尚未开始），用 is_null() 双重判断避免把 null 渲染成 "null"
                 if (choice.contains("delta") && choice["delta"].contains("reasoning_content") &&

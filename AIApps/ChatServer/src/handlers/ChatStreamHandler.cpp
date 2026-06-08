@@ -111,10 +111,9 @@ void ChatStreamHandler::handle(const http::HttpRequest &req, http::HttpResponse 
         return escaped;
     };
 
-    // SSE 回调：kind ∈ {"content", "reasoning"}。
+    // SSE 回调：kind ∈ {"content", "reasoning", "error"}。
     // 思考内容（reasoning）是模型推理过程，不参与"偶数=user / 奇数=assistant"的下标约定，
     // 也不写回 fullReply / 历史库 —— 它是"过程态"、本轮结束就丢；最终答案（content）维持现有行为。
-    // 严格匹配 kind,未知值直接 log + 丢弃,绝不静默退化成 content（避免下游误把脏数据写进最终答案）。
     auto onChunk = [conn, fullReply, escapeForJson](const std::string &kind, const std::string &text) {
         if (text.empty()) return;
         if (kind == "reasoning") {
@@ -127,6 +126,13 @@ void ChatStreamHandler::handle(const http::HttpRequest &req, http::HttpResponse 
         if (kind == "content") {
             fullReply->append(text);
             std::string line = "data: {\"content\": \"" + escapeForJson(text) + "\"}\n\n";
+            muduo::net::Buffer buf;
+            buf.append(line);
+            conn->send(&buf);
+            return;
+        }
+        if (kind == "error") {
+            std::string line = "data: {\"error\": \"" + escapeForJson(text) + "\"}\n\n";
             muduo::net::Buffer buf;
             buf.append(line);
             conn->send(&buf);

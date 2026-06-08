@@ -274,6 +274,9 @@ void AIHelper::executeCurlStream(const json &payload,
 json AIHelper::buildStreamRequest() {
     json payload = strategy->buildRequest(this->messages);
     payload["stream"] = true;
+    // 不设 max_tokens 时各厂商默认值差异很大（DeepSeek-reasoner 仅 4K 输出），
+    // 详细回答（含代码示例）经常会静默截断，前端看到半句话就停。设为 8K 覆盖绝大多数场景。
+    payload["max_tokens"] = 200000;
     return payload;
 }
 
