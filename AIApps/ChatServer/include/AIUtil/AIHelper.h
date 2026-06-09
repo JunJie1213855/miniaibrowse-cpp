@@ -52,7 +52,13 @@ public:
 
     std::vector<std::pair<std::string, long long>> GetMessages();
 
+    // 模拟模式：跳过真实 LLM API 调用，返回预置文本。
+    // 用于压测框架性能、测量端到端延迟，避免消耗 API token。
+    static void setSimulateMode(bool on) { s_simulateMode = on; }
+    static bool isSimulateMode() { return s_simulateMode; }
+
 private:
+    static bool s_simulateMode;
     std::string escapeString(const std::string &input);
     // 加入到mysql的接口（提供加入到线程池的接口，线程池做异步mysql更新操作）
     // todo:

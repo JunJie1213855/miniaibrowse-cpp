@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <memory>
+#include <set>
 #include <tuple>
 #include <unordered_map>
 #include <mutex>
@@ -93,6 +94,9 @@ private:
 
 	std::unordered_map<int,std::vector<std::string> > sessionsIdsMap;
 	std::mutex mutexForSessionsId;
+
+	std::set<int> loadedUsers_;       // 已懒加载完成的用户集合
+	std::mutex mutexForLoadedUsers_;  // 保护 loadedUsers_ 的 check-and-insert 原子性
 
 };
 

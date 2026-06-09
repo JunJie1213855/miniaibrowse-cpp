@@ -42,6 +42,13 @@ void ChatSendHandler::handle(const http::HttpRequest& req, http::HttpResponse* r
             modelType = j.contains("modelType") ? j["modelType"].get<std::string>() : "1";
         }
 
+        // sessionId 为空 → 生成新会话 ID（同 ChatStreamHandler）
+        if (sessionId.empty()) {
+            AISessionIdGenerator generator;
+            sessionId = generator.generate();
+            std::lock_guard<std::mutex> lock(server_->mutexForSessionsId);
+            server_->sessionsIdsMap[userId].push_back(sessionId);
+        }
 
         std::shared_ptr<AIHelper> AIHelperPtr;
         {

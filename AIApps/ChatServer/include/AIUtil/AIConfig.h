@@ -29,6 +29,8 @@ public:
     std::string buildPrompt(const std::string& userInput) const;
     AIToolCall parseAIResponse(const std::string& response) const;
     std::string buildToolResultPrompt(const std::string& userInput,const std::string& toolName,const json& toolArgs,const json& toolResult) const;
+    const std::vector<AITool>& getTools() const { return tools_; }
+    bool isLoaded() const { return !promptTemplate_.empty(); }
 
 private:
     std::string promptTemplate_;

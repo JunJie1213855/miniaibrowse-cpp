@@ -5,6 +5,14 @@ project(http_server)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 编译优化：O3 + 本地 CPU 指令集 + LTO
+# Release 构建自动启用；Debug 构建保持 -O0 -g
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -flto -funroll-loops -DNDEBUG")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -mtune=native -flto -funroll-loops -DNDEBUG")
+# LTO 需要链接器配合
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-flto")
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "-flto")
+
 # 查找 OpenSSL 和 CURL
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)

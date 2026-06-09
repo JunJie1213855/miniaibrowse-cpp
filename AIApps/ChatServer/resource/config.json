@@ -12,6 +12,14 @@
       "name": "get_time",
       "params": {},
       "desc": "获取当前时间"
+    },
+    {
+      "name": "web_search",
+      "params": {
+        "query": "搜索关键词",
+        "max_results": "返回结果数量(1-10,默认5)"
+      },
+      "desc": "联网搜索最新信息，传入搜索关键词(必填)和可选的 max_results"
     }
   ]
 }

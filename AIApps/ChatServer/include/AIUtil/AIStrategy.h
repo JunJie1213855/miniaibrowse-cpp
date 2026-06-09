@@ -31,6 +31,19 @@ public:
                                         const std::function<void(const std::string &kind, const std::string &text)> &onChunk) const;
 
     bool isMCPModel = false;
+
+    // 标记本策略是否使用 OpenAI 兼容的原生 tool calling（tools/tool_calls 字段）。
+    // 为 true 时 AIHelper::chat 走原生工具调用分支，与 MCP 两阶段 JSON 模式互斥。
+    bool isNativeToolModel = false;
+
+    // 工具定义（OpenAI format），由 AIHelper 注入。
+    // 策略构造时不直接 loadFromFile（避免硬编码路径），由 AIHelper 统一加载后
+    // 通过 setTools() 注入。空数组表示不传 tools 字段。
+    void setTools(const json& tools) { tools_ = tools; }
+    const json& getTools() const { return tools_; }
+
+protected:
+    json tools_ = json::array();
 };
 
 class AliyunStrategy : public AIStrategy
@@ -131,14 +144,7 @@ private:
 class DeepSeekStrategy : public AIStrategy
 {
 public:
-    DeepSeekStrategy()
-    {
-        const char *key = std::getenv("DEEPSEEK_API_KEY");
-        if (!key)
-            throw std::runtime_error("DeepSeek API KEY Not Found!!!");
-        apiKey_ = key;
-        isMCPModel = false;
-    }
+    DeepSeekStrategy();
     std::string getApiUrl() const override;
     std::string getApiKey() const override;
     std::string getModel() const override;

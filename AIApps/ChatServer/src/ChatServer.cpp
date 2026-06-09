@@ -16,8 +16,8 @@
 #include "../../../HttpServer/include/http/HttpRequest.h"
 #include "../../../HttpServer/include/http/HttpResponse.h"
 #include "../../../HttpServer/include/http/HttpServer.h"
-
-
+#include "../../../HttpServer/include/middleware/QpsMetricsMiddleware.h"
+#include <sstream>
 
 using namespace http;
 
@@ -104,11 +104,12 @@ void ChatServer::readDataFromMySQL() {
 
 // 按需懒加载单个用户的消息历史，避免启动时全量加载所有用户数据
 // 只在用户首次访问（登录后加载会话列表）时触发一次，后续直接从内存读取
+// 用 loadedUsers_ 集合保证 check-and-insert 原子性，避免多线程重复查库
 void ChatServer::ensureUserDataLoaded(int userId) {
-	// 已加载过则跳过
+	// 快速路径：已加载过
 	{
-		std::lock_guard<std::mutex> lock(mutexForChatInformation);
-		if (chatInformation.find(userId) != chatInformation.end()) return;
+		std::lock_guard<std::mutex> lock(mutexForLoadedUsers_);
+		if (loadedUsers_.count(userId)) return;
 	}
 
 	std::string sql = "SELECT id, username, session_id, is_user, content, ts "
@@ -156,6 +157,10 @@ void ChatServer::ensureUserDataLoaded(int userId) {
 		helper->restoreMessage(content, ts);
 	}
 
+	{
+		std::lock_guard<std::mutex> lock(mutexForLoadedUsers_);
+		loadedUsers_.insert(userId);
+	}
 	std::cout << "ensureUserDataLoaded: user " << userId
 			  << " loaded" << std::endl;
 }
@@ -193,6 +198,19 @@ void ChatServer::initializeRouter() {
     httpServer_.Get("/chat/sessions", std::make_shared<ChatSessionsHandler>(this));
     httpServer_.Post("/chat/delete-session", std::make_shared<ChatDeleteSessionHandler>(this));
     httpServer_.Post("/chat/rename", std::make_shared<ChatRenameSessionHandler>(this));
+
+    // QPS 统计接口
+    httpServer_.Get("/metrics", [](const http::HttpRequest& req, http::HttpResponse* resp) {
+        (void)req;
+        std::string body = http::middleware::QpsMetricsMiddleware::getMetricsJson();
+        resp->setVersion("HTTP/1.1");
+        resp->setStatusCode(http::HttpResponse::k200Ok);
+        resp->setStatusMessage("OK");
+        resp->setContentType("application/json");
+        resp->setContentLength(body.size());
+        resp->setBody(body);
+        resp->setCloseConnection(false);
+    });
 }
 
 void ChatServer::initializeSession() {
@@ -207,8 +225,10 @@ void ChatServer::initializeSession() {
 void ChatServer::initializeMiddleware() {
 
     auto corsMiddleware = std::make_shared<http::middleware::CorsMiddleware>();
-
     httpServer_.addMiddleware(corsMiddleware);
+
+    auto qpsMiddleware = std::make_shared<http::middleware::QpsMetricsMiddleware>();
+    httpServer_.addMiddleware(qpsMiddleware);
 }
 
 

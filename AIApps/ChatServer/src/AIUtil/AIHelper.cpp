@@ -5,6 +5,9 @@
 #include <thread>
 #include <atomic>
 
+// 静态变量
+bool AIHelper::s_simulateMode = false;
+
 // 构造函数
 AIHelper::AIHelper() {
     //默认使用阿里云大模型
@@ -45,8 +48,107 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
     std::cout << "[LocalLLM] after setStrategy, URL=" << strategy->getApiUrl()
               << " key=[" << strategy->getApiKey() << "]" << std::endl;
 
+    // 模拟模式：跳过真实 API 调用，返回预置文本
+    if (s_simulateMode) {
+        addMessage(userId, userName, true, userQuestion, sessionId);
+        std::string mock = u8"[模拟回复] 您的提问「" + userQuestion + u8"」已收到。\n\n"
+            "这是由 AI_SIMULATE 模式生成的占位回复，实际 LLM API 调用已被跳过。\n"
+            "该模式用于压测框架性能、测量端到端延迟，避免消耗 API token。\n\n"
+            "当前策略: " + strategy->getModel() + " (" + modelType + ")";
+        addMessage(userId, userName, false, mock, sessionId);
+        return mock;
+    }
 
     if (false == strategy->isMCPModel) {
+        // 原生 tool calling 分支：DeepSeek / 其他 OpenAI 兼容模型
+        // 模型会输出 OpenAI 标准的 tool_calls 字段 → 解析 → 执行工具 → 二次调用
+        if (strategy->isNativeToolModel) {
+            // 加载 config 工具定义，转为 OpenAI 格式注入 strategy
+            AIConfig config;
+            if (config.loadFromFile("/home/ros/lib/CppAIWeb/AIApps/ChatServer/resource/config.json")) {
+                json oaTools = json::array();
+                for (const auto& t : config.getTools()) {
+                    json function;
+                    function["name"] = t.name;
+                    function["description"] = t.desc;
+                    json properties = json::object();
+                    json required = json::array();
+                    for (const auto& [k, v] : t.params) {
+                        properties[k] = { {"type", "string"}, {"description", v} };
+                        required.push_back(k);
+                    }
+                    function["parameters"] = {
+                        {"type", "object"}, {"properties", properties}, {"required", required}
+                    };
+                    oaTools.push_back({ {"type", "function"}, {"function", function} });
+                }
+                strategy->setTools(oaTools);
+            }
+
+            addMessage(userId, userName, true, userQuestion, sessionId);
+            json payload = strategy->buildRequest(this->messages);
+            json response = executeCurl(payload);
+
+            // 解析 OpenAI 标准响应
+            if (!response.contains("choices") || response["choices"].empty()) {
+                std::string err = "[Error] DeepSeek 返回格式异常";
+                addMessage(userId, userName, false, err, sessionId);
+                return err;
+            }
+            auto& choice = response["choices"][0];
+            auto& message = choice["message"];
+
+            // 情况1：直接文本回答
+            if (!message.contains("tool_calls") || message["tool_calls"].is_null() || message["tool_calls"].empty()) {
+                std::string answer = message.value("content", "");
+                addMessage(userId, userName, false, answer, sessionId);
+                return answer.empty() ? "[Error] 无法解析响应" : answer;
+            }
+
+            // 情况2：模型要调用工具 — 把完整 assistant 消息 push 进历史（保留 tool_calls）
+            messages.push_back({ message.dump(), 0 });
+            // 执行每个 tool_call（按 tool_call_id 配对执行结果）
+            AIToolRegistry registry;
+            for (const auto& tc : message["tool_calls"]) {
+                std::string callId = tc.value("id", "");
+                std::string toolName = tc["function"].value("name", "");
+                std::string rawArgs = tc["function"].value("arguments", "{}");
+                json args;
+                try { args = json::parse(rawArgs); } catch (...) { args = json::object(); }
+
+                std::cout << "[DeepSeek tool] " << toolName << " id=" << callId
+                          << " args=" << args.dump() << std::endl;
+
+                std::string toolResultStr;
+                try {
+                    json result = registry.invoke(toolName, args);
+                    toolResultStr = result.dump();
+                } catch (const std::exception& e) {
+                    toolResultStr = std::string("{\"error\":\"") + e.what() + "\"}";
+                }
+                // push tool 结果消息，role=tool
+                json toolMsg = {
+                    {"role", "tool"},
+                    {"tool_call_id", callId},
+                    {"content", toolResultStr}
+                };
+                messages.push_back({ toolMsg.dump(), 0 });
+            }
+
+            // 二次调用：让模型基于工具结果生成最终回答
+            json secondPayload = strategy->buildRequest(this->messages);
+            json secondResp = executeCurl(secondPayload);
+            std::string finalAnswer;
+            if (secondResp.contains("choices") && !secondResp["choices"].empty()) {
+                finalAnswer = secondResp["choices"][0]["message"].value("content", "");
+            }
+            // 清理临时消息（assistant tool_calls + tool 结果）
+            messages.pop_back(); // 最后一个 tool 消息
+            messages.pop_back(); // assistant 消息
+
+            addMessage(userId, userName, false, finalAnswer, sessionId);
+            return finalAnswer.empty() ? "[Error] 工具调用后未生成回答" : finalAnswer;
+        }
 
         addMessage(userId, userName, true, userQuestion, sessionId);
         json payload = strategy->buildRequest(this->messages);
@@ -91,8 +193,8 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
         toolResult = registry.invoke(call.toolName, call.args);
         std::cout << "Tool call success" << std::endl;
     }
-    catch (const std::exception& e) 
-    { 
+    catch (const std::exception& e)
+    {
         //大多数情况都不会走这里
         std::string err = "[工具调用失败] " + std::string(e.what());
         addMessage(userId, userName, true, userQuestion, sessionId);
@@ -105,7 +207,7 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
     // 第二次调用AI
     // 用同样的 prompt_template，但说明工具执行过
     std::string secondPrompt = config.buildToolResultPrompt(userQuestion, call.toolName, call.args, toolResult);
-    
+
     std::cout << "secondPrompt is " << secondPrompt << std::endl;
     messages.push_back({ secondPrompt, 0 });
 
@@ -198,6 +300,29 @@ size_t AIHelper::WriteCallback(void* contents, size_t size, size_t nmemb, void* 
 void AIHelper::executeCurlStream(const json &payload,
                                 const std::function<void(const std::string &kind, const std::string &text)> &onChunk)
 {
+    // 模拟模式：跳过 curl，直接回调预设内容块，模拟真实流式输出
+    if (s_simulateMode) {
+        const char* mockChunks[] = {
+            u8"这是模拟流式回复。您的提问已收到，",
+            u8"实际 LLM API 调用已被跳过。\n\n",
+            u8"该模式通过环境变量 AI_SIMULATE=1 启用，",
+            u8"用于压测框架性能、测量端到端延迟，",
+            u8"避免在调试/压测期间消耗 API token。\n\n",
+            u8"当前模型: ",
+            (strategy ? strategy->getModel() : "unknown").c_str(),
+            u8"\n\n如需真实回复，请关闭 AI_SIMULATE 并重启服务。"
+        };
+        for (const char* chunk : mockChunks) {
+            if (chunk && *chunk) {
+                onChunk("content", std::string(chunk));
+            }
+            // 模拟网络延迟：每个 chunk 间隔 ~5ms（约 200 chunk/s）
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        return;
+    }
+
+    // 真实模式：走 curl
     CURL *curl = curl_easy_init();
     if (!curl) {
         throw std::runtime_error("Failed to initialize curl");

@@ -205,6 +205,17 @@ std::string DeepSeekStrategy::getModel() const
     return "deepseek-reasoner";
 }
 
+// DeepSeek 用 OpenAI 兼容的原生 tool calling 协议（与 MCP JSON 模式互斥）
+// 构造时由 DeepSeekStrategy 注册时设置 isNativeToolModel = true
+DeepSeekStrategy::DeepSeekStrategy() {
+    const char *key = std::getenv("DEEPSEEK_API_KEY");
+    if (!key)
+        throw std::runtime_error("DeepSeek API KEY Not Found!!!");
+    apiKey_ = key;
+    isMCPModel = false;
+    isNativeToolModel = true;
+}
+
 json DeepSeekStrategy::buildRequest(const std::vector<std::pair<std::string, long long>> &messages) const
 {
     json payload;
@@ -221,6 +232,11 @@ json DeepSeekStrategy::buildRequest(const std::vector<std::pair<std::string, lon
         msgArray.push_back(std::move(msg));
     }
     payload["messages"] = msgArray;
+
+    // 附加 OpenAI 兼容的 tools 字段（由 AIHelper 注入）
+    if (!tools_.empty()) {
+        payload["tools"] = tools_;
+    }
     return payload;
 }
 
