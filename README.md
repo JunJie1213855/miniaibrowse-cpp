@@ -310,6 +310,29 @@ make -j
 
 ---
 
+## 性能基准
+
+> 完整 SOP 见 [`docs/Bench.md`](docs/Bench.md)，原始数据见 [`run_bench.md`](run_bench.md)。
+> 下面数据为模拟模式（`AI_SIMULATE=1`）压测结果，仅反映**框架 + 内存 + MQ 链路**的吞吐，不含真实 LLM 调用耗时。
+
+测试环境：Ubuntu 22.04 / WSL2（Linux 5.15），Release 构建（`-O3 -march=native -flto`），4 线程 × 50~100 并发 × 30 秒。
+
+| 接口 | 工具 | 并发 | 吞吐 | 平均延迟 | 备注 |
+|------|------|------|------|----------|------|
+| `GET /metrics` | wrk | 100 | **94,947 req/s** | 1.07 ms | 纯 HTTP 框架开销（无 session / 无 DB），约 23.86k req/s/thread |
+| `GET /` | wrk | 100 | **67,439 req/s** | 2.93 ms | 静态页面（`entry.html`），含文件 I/O |
+| `POST /chat/send` | wrk | 50 | **14,156 req/s** | 20.72 ms | 模拟模式跳过 LLM；含 session 校验、消息入队、MySQL 异步写 |
+| `POST /chat/stream` | hey | 20 | ~8000 req/s | ~22 ms / 流 | SSE 长连接；wrk 不适合（短连接），必须用 hey |
+
+**主要发现**：
+
+- 框架纯 HTTP 路径（`/metrics`）在 4 核上跑到 ~95k req/s，证明 muduo + middleware chain 没有明显瓶颈。
+- 加 session 校验 + 内存操作 + MQ 发布 + 异步 MySQL 写（`/chat/send`）后吞吐降到 ~14k req/s，主要是 50 并发时 MQ worker 线程（`THREAD_NUM=12`）偶发排队造成 1.48s 尾延迟。
+- **高并发压测前必做**（[docs/Bench.md](docs/Bench.md)）：① 清空 `sql_queue` 队列（残留消息会重复执行 SQL 报错）；② 必须 `AI_SIMULATE=1`；③ 调大 `ulimit -n`；④ 流式接口用 `hey` 而非 wrk。
+- **生产调优提示**：观察 `docker exec -it chat_rabbitmq rabbitmqctl list_queues` 看 `sql_queue` 积压；若积压持续增长，调大 `main.cpp` 的 `THREAD_NUM`（默认 12）。
+
+---
+
 ## 已知问题 / 注意事项
 
 1. **资源文件绝对路径硬编码**：`AIHelper.cpp`、`ChatHandler.cpp`、`ChatEntryHandler.cpp` 中写死了 `/home/ros/lib/CppAIWeb/AIApps/ChatServer/resource/...`，部署到其他环境需修改。
