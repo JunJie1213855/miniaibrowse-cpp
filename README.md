@@ -318,9 +318,3 @@ make -j
 4. **`/register` 存在 SQL 注入风险**：注册接口用字符串拼接构造 SQL，生产前应改为参数化查询。
 5. **`chat_message` 的 `id` 列为用户 ID（非自增主键）**：表设计中 `pk` 才是自增主键，`id` 存用户 ID。`readDataFromMySQL` 误将 `id` 当用户 ID 读取，与写入时 `INSERT ... id = userId` 一致，但字段命名容易混淆。
 6. 无测试套件 / CI：验证依赖编译通过与手动联调。
-
----
-
-## 致谢
-
-项目思路源自 [代码随想录](https://programmercarl.com/) 的「C++ AI 应用服务平台」系列。本仓库为代码实现，按 GPLv3 开源。

@@ -889,22 +889,23 @@
         function updatePositionRail() {
             if (!positionRailTrack) return;
             const userMessages = chatContainer.querySelectorAll('.message.user');
-            const existing = positionRailTrack.querySelectorAll('.position-anchor');
 
             // Toggle empty hint
             if (positionRailEmpty)
                 positionRailEmpty.style.display = userMessages.length === 0 ? '' : 'none';
 
+            // 收集已有 anchor 一次，O(N) → 数组索引访问 → O(1) 查找
+            const existing = Array.from(positionRailTrack.querySelectorAll('.position-anchor'));
+
             // Remove excess anchors
             while (existing.length > userMessages.length) {
-                const last = positionRailTrack.querySelector('.position-anchor:last-child');
-                if (last) last.remove();
+                existing.pop().remove();
             }
 
             const { scrollHeight } = getScrollMetrics();
 
             userMessages.forEach((msg, i) => {
-                let anchor = positionRailTrack.querySelectorAll('.position-anchor')[i];
+                let anchor = existing[i];
                 if (!anchor) {
                     anchor = document.createElement('div');
                     anchor.className = 'position-anchor';
@@ -921,13 +922,16 @@
                     anchor.appendChild(tip);
 
                     // Click → scroll to that user message
-                    anchor.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const targetTop = msg.offsetTop - 60;
-                        chatContainer.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+                    // 用 dataset.index 间接寻址，避免 N 个独立闭包对象
+                    anchor.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const idx = parseInt(anchor.dataset.index, 10);
+                        const target = chatContainer.querySelectorAll('.message.user')[idx];
+                        if (target) chatContainer.scrollTo({ top: Math.max(0, target.offsetTop - 60), behavior: 'smooth' });
                     });
 
                     positionRailTrack.appendChild(anchor);
+                    existing[i] = anchor;
                 }
 
                 // Proportional position (midpoint / total scroll height * 100%)
@@ -996,11 +1000,23 @@
         });
 
         // DOM changes + resize → rebuild anchors
-        const railMutationObs = new MutationObserver(() => updatePositionRail());
-        railMutationObs.observe(chatContainer, { childList: true, subtree: true, characterData: true });
+        // Observer config 抽出来：分块渲染时需要 disconnect/observe 切换，
+        // 复用同一份配置避免硬编码漂移
+        const observerCfg = { childList: true, subtree: true, characterData: true };
+        const railMutationObs = new MutationObserver(() => {
+            // 正在分块渲染中：跳过本帧，最后一次 step() 完成后会统一重建
+            if (renderingBatch) { pendingPositionRail = true; return; }
+            updatePositionRail();
+        });
+        railMutationObs.observe(chatContainer, observerCfg);
 
         if (typeof ResizeObserver !== 'undefined') {
-            const railResizeObs = new ResizeObserver(() => updatePositionRail());
+            const railResizeObs = new ResizeObserver(() => {
+                // 渲染期间容器高度持续增长，每帧都触发 ResizeObserver。
+                // 跳过本帧让 step() 末尾统一重建，避免每个分块都做 O(N) 锚点计算
+                if (renderingBatch) { pendingPositionRail = true; return; }
+                updatePositionRail();
+            });
             railResizeObs.observe(chatContainer);
             railResizeObs.observe(positionRailTrack);
         }
@@ -1050,14 +1066,81 @@
 
         loadInputHistory();
 
+        // 单条插入并缓存：返回插入的 message item 以便 push 到 sessions 列表
+        // ★ 关键：解析结果存在 item._cachedHtml，切回会话时直接复用
         function appendMessage(role, content) {
-            const msgDiv = document.createElement('div');
-            msgDiv.classList.add('message', role);
-            const safeHtml = DOMPurify.sanitize(marked.parse(content));
-            msgDiv.innerHTML = `<b>${role === 'user' ? '你' : 'AI'}</b><br>${safeHtml}`;
-            chatContainer.appendChild(msgDiv);
+            const item = { role, content };
+            appendMessageItem(item);
+            return item;
+        }
+
+        function appendMessageItem(item) {
+            if (!item._cachedHtml) {
+                const safeHtml = DOMPurify.sanitize(marked.parse(item.content || ''));
+                item._cachedHtml = `<b>${item.role === 'user' ? '你' : 'AI'}</b><br>${safeHtml}`;
+            }
+            const div = document.createElement('div');
+            div.classList.add('message', item.role);
+            div.innerHTML = item._cachedHtml;
+            chatContainer.appendChild(div);
             chatContainer.scrollTop = chatContainer.scrollHeight;
-            return msgDiv;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // 分块批量渲染（防切换会话卡死）
+        //   旧版一次性同步 N 次 marked.parse + 一次 DOM 插入，N>50 时主线程
+        //   仍会被长任务（>50ms）阻塞，浏览器表现为切换时卡顿。
+        //   现版把 parse+DOM 拆为多个 chunk，每帧只处理 20 条，让浏览器
+        //   有空处理输入/绘制。用户能感知到消息"一段段"出现，但 UI 始终响应。
+        //   同时在渲染期间临时屏蔽 MutationObserver / ResizeObserver，
+        //   避免每条消息触发 updatePositionRail → 重建 N 个锚点。
+        //   ★ 关键：每条消息的解析结果缓存在 _cachedHtml 上，切回已渲染过
+        //   的会话直接复用，N 条消息 0 次 marked.parse → 立即完成。
+        // ═══════════════════════════════════════════════════════════════════
+        const BATCH_SIZE = 20;        // 每帧最多解析+插入 20 条
+        let renderingBatch = false;   // 防止 batch 重入
+        let pendingPositionRail = false; // 渲染期间若 Observer 触发，合并成 1 次
+
+        function renderMessagesChunked(items, onDone) {
+            if (renderingBatch) return;
+            renderingBatch = true;
+            let idx = 0;
+            const total = items.length;
+
+            function step() {
+                const end = Math.min(idx + BATCH_SIZE, total);
+                const frag = document.createDocumentFragment();
+                for (; idx < end; idx++) {
+                    const item = items[idx];
+                    // ★ 缓存命中：之前解析过直接复用，跳过 marked.parse + DOMPurify
+                    if (!item._cachedHtml) {
+                        const safeHtml = DOMPurify.sanitize(marked.parse(item.content || ''));
+                        item._cachedHtml = `<b>${item.role === 'user' ? '你' : 'AI'}</b><br>${safeHtml}`;
+                    }
+                    const div = document.createElement('div');
+                    div.classList.add('message', item.role);
+                    div.innerHTML = item._cachedHtml;
+                    frag.appendChild(div);
+                }
+                // 暂停 observer 之后才插入 → 抑制每条消息触发 updatePositionRail
+                if (railMutationObs) railMutationObs.disconnect();
+                chatContainer.appendChild(frag);
+                pendingPositionRail = true;
+                if (railMutationObs) railMutationObs.observe(chatContainer, observerCfg);
+
+                if (idx < total) {
+                    requestAnimationFrame(step);
+                } else {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    renderingBatch = false;
+                    if (pendingPositionRail) {
+                        pendingPositionRail = false;
+                        updatePositionRail();
+                    }
+                    if (onDone) onDone();
+                }
+            }
+            requestAnimationFrame(step);
         }
 
         function clearMessages() { chatContainer.innerHTML = ''; }
@@ -1122,19 +1205,29 @@
         }
 
         async function switchSession(id) {
+            // 切换前先清空容器 + 立即更新侧边栏高亮，避免用户感觉"点了没反应"
             currentSessionId = String(id); tempSession = false; clearMessages();
+            renderSessionList();
+
             if (!sessions[id].messages || sessions[id].messages.length === 0) {
                 try {
                     const res = await fetch('/chat/history', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: currentSessionId }) });
                     const data = await res.json();
                     if (data.success && Array.isArray(data.history)) {
+                        sessions[id].messages = data.history.map(item => ({
+                            role: item.is_user ? 'user' : 'assistant',
+                            content: item.content
+                        }));
+                    } else {
                         sessions[id].messages = [];
-                        data.history.forEach(item => { sessions[id].messages.push({ role: item.is_user ? 'user' : 'assistant', content: item.content }); });
                     }
-                } catch (err) { console.error('获取历史失败', err); }
+                } catch (err) {
+                    console.error('获取历史失败', err);
+                    sessions[id].messages = [];
+                }
             }
-            sessions[id].messages.forEach(m => appendMessage(m.role, m.content));
-            renderSessionList();
+            // 分块渲染：每帧 20 条，主线程永远 < 50ms 任务，UI 不卡
+            renderMessagesChunked(sessions[id].messages);
         }
 
         newChatBtn.addEventListener('click', () => {
@@ -1144,7 +1237,7 @@
         });
 
         // SSE 流式处理函数
-        async function streamAIResponse(question, modelType, sessionId) {
+        async function streamAIResponse(question, modelType, sessionId, userItem) {
             const response = await fetch('/chat/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1243,9 +1336,12 @@
                     const j = JSON.parse(dataStr);
                     if (j.sessionId) {
                         const newId = String(j.sessionId);
+                        // ★ 复用 chatForm submit 时创建的 message item，
+                        // 内含 _cachedHtml → 切回此会话时 0 次重新解析
+                        const item = userItem || { role: 'user', content: question };
                         sessions[newId] = {
                             name: question.length > 15 ? question.substring(0, 15) + '...' : question,
-                            messages: [{ role: 'user', content: question }]
+                            messages: [item]
                         };
                         currentSessionId = newId;
                         tempSession = false;
@@ -1306,13 +1402,15 @@
             const question = questionInput.value.trim();
             if (!question) { isSubmitting = false; return; }
 
-            appendMessage('user', question);
+            // ★ 返回带 _cachedHtml 的 message item 传给 streamAIResponse，
+            // 切回此会话时渲染命中缓存，跳过 marked.parse
+            const userItem = appendMessage('user', question);
 
             try {
                 if (!tempSession && sessions[currentSessionId]) {
-                    sessions[currentSessionId].messages.push({ role: 'user', content: question });
+                    sessions[currentSessionId].messages.push(userItem);
                 }
-                await streamAIResponse(question, modelTypeSelect.value, tempSession ? '' : currentSessionId);
+                await streamAIResponse(question, modelTypeSelect.value, tempSession ? '' : currentSessionId, userItem);
 
                 questionInput.value = '';
                 saveInputHistory();
@@ -1338,12 +1436,13 @@
                 });
                 const data = await res.json();
                 if (data.success && Array.isArray(data.history)) {
-                    sessions[currentSessionId].messages = [];
+                    const msgs = data.history.map(item => ({
+                        role: item.is_user ? 'user' : 'assistant',
+                        content: item.content
+                    }));
+                    sessions[currentSessionId].messages = msgs;
                     clearMessages();
-                    data.history.forEach(item => {
-                        appendMessage(item.is_user ? 'user' : 'assistant', item.content);
-                        sessions[currentSessionId].messages.push({ role: item.is_user ? 'user' : 'assistant', content: item.content });
-                    });
+                    renderMessagesChunked(msgs);
                 } else {
                     alert('[错误] 无法获取历史数据');
                 }
